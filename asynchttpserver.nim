@@ -33,11 +33,8 @@
 
 import tables, asyncnet, asyncdispatch, parseutils, uri, strutils
 import httpcore
-# hdias begin
-import os, oids, asyncfile
-# hdias end
-export httpcore except parseHeader
 
+export httpcore except parseHeader
 
 const
   maxLine = 8*1024
@@ -56,7 +53,10 @@ type
     url*: Uri
     hostname*: string ## The hostname of the client that made the request.
     body*: string
-    cachedBody*: string ## hdias cache big body's
+    # begin: inserted by hdias 2019-03-02
+    content_length*: int
+    complete*: proc (status: bool): Future[void]
+    # end
 
   AsyncHttpServer* = ref object
     socket: AsyncSocket
@@ -168,6 +168,12 @@ proc processRequest(
   request.hostname.shallowCopy(address)
   assert client != nil
   request.client = client
+  
+  # begin: inserted by hdias 2019-03-02
+  var remainder = false
+  request.complete = proc(status: bool) {.async.} =
+    remainder = not status
+  # end
 
   # We should skip at least one empty line before the request
   # https://tools.ietf.org/html/rfc7230#section-3.5
@@ -254,43 +260,33 @@ proc processRequest(
       if contentLength > server.maxBody:
         await request.respondError(Http413)
         return false
-      
+        
+      # begin: commented on by hdias 2019-03-02
       # request.body = await client.recv(contentLength)
       # if request.body.len != contentLength:
-      #  await request.respond(Http400, "Bad Request. Content-Length does not match actual.")
-      #  return true
-
-      # hdias begin
-      if request.headers.hasKey("Content-type") and request.headers["Content-type"][0 .. 29] == "multipart/form-data; boundary=":
-        request.cachedBody = join([getTempDir() / $genOid(), "tmp"], ".")
-        let fh = openAsync(request.cachedBody, fmWrite)
-        const chunkSize = 8192
-        var remainder = contentLength
-        echo "Remainder: " & $remainder
-        while remainder > 0:
-          let data = await client.recv(if remainder < chunkSize: remainder else: chunkSize)
-          await fh.write(data)
-          remainder -= data.len
-        fh.close()
-        echo "Remainder: " & $remainder
-
-        if getFileSize(request.cachedBody) != contentLength:
-          await request.respond(Http400, "Bad Request. Content-Length does not match actual.")
-          return true
-      else:
-        request.body = await client.recv(contentLength)
-        if request.body.len != contentLength:
-          await request.respond(Http400, "Bad Request. Content-Length does not match actual.")
-          return true
-    # hdias end
-
+      #   await request.respond(Http400, "Bad Request. Content-Length does not match actual.")
+      #   return true
+      # end
+      
+      # begin inserted by hdias 2019-03-02
+      request.content_length = contentLength
+      # end
 
   elif request.reqMethod == HttpPost:
     await request.respond(Http411, "Content-Length required.")
     return true
 
   # Call the user's callback.
+  # echo "Result after: " & $remainder # inserted by hdias 2019-03-02
   await callback(request)
+  # echo "Result before: " & $remainder # inserted by hdias 2019-03-02
+  # begin inserted by hdias 2019-03-02
+  if remainder:
+    await request.respond(Http400, "Bad Request. Content-Length does not match actual.")
+    return true
+  # end
+
+
 
   if "upgrade" in request.headers.getOrDefault("connection"):
     return false
