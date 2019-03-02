@@ -7,6 +7,10 @@ Install nim and run this command (I just tested on Linux)
         $ git clone https://github.com/mrhdias/EnigmaHTTPServer
         $ cd EnigmaHTTPServer
         $ nim c -r server.nim
+        
+        # Run the tests (1 to 4):
+        $ cd tests
+        $ nim c -r test1.nim
 
 Open your browser and type in the URL http://127.0.0.1:8080
 
