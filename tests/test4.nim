@@ -67,7 +67,7 @@ function test_json() {
       var msg: JsonNode
       if httpbody.data.len > 0:
         let jsonNode = parseJson(httpbody.data)
-        msg = %* {"login": jsonNode["login"], "password": $jsonNode["password"], "status": "ok" }
+        msg = %* {"login": jsonNode["login"], "password": jsonNode["password"], "status": "ok" }
       else:
         msg = %* {"status": "not ok" }
 
