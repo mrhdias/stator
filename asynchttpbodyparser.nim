@@ -231,12 +231,21 @@ proc processRequestMultipartBody(req: Request, uploadDirectory: string): Future[
               buffer = ""
               count_boundary_chars = 0
               continue
+              
+            # echo "On the right path to find the Boundary: " & data[i] & " = " & boundary[count_boundary_chars]
             buffer.add(data[i])
             count_boundary_chars += 1
             continue
 
           else:
+            # echo "Boundary detection failed: " & data[i] & " = " & boundary[count_boundary_chars]
             if count_dashes == 2:
+              # If the next character is an "-" the number of characters remains equal to 2.
+              # So check the same character of the boundary
+              if data[i] == '-':
+                buffer.add(data[i])
+                continue
+
               read_boundary = false
               count_dashes = 0
 
@@ -312,7 +321,7 @@ proc processRequestMultipartBody(req: Request, uploadDirectory: string): Future[
                 #-- end check the type if is a filename or a data value
               #--- end process headers ---
               continue
-            # echo "HEADER: " & buffer
+            # echo ">> Header: " & buffer
             raw_headers.add(buffer)
             buffer = ""
             bag = ""
