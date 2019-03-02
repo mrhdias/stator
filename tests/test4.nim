@@ -20,7 +20,7 @@ function test_json() {
     alert("Password field is empty!");
     return false;
   }
-  fetch("/json", {
+  fetch("/", {
     method: "post",
     headers: {
       'Accept': 'application/json',
