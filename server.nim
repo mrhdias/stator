@@ -136,6 +136,7 @@ $1
           html.add("<li>File Size: $1</li>" % $httpbody.formfiles[k].filesize)
           html.add("</ul>")
         html.add("</ul>")
+        html.add("Upload Directory: $1" % uploadDir)
 
       await req.respond(Http200, resform % html)
       removeDir(uploadDir)
