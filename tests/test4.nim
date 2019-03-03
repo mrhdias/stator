@@ -39,6 +39,8 @@ function test_json() {
 
       // Examine the text in the response
       response.json().then(function(data) {
+        document.getElementById("login").value = ""
+        document.getElementById("password").value = ""
         document.getElementById("response").innerHTML = JSON.stringify(data)
       });
     }
@@ -63,7 +65,7 @@ function test_json() {
 
   if req.reqMethod == HttpPost:
     if req.headers["Content-type"] == "application/json":
-      let httpbody = await parseBody(req)
+      let httpbody = await newAsyncBodyParser(req)
       var msg: JsonNode
       if httpbody.data.len > 0:
         let jsonNode = parseJson(httpbody.data)

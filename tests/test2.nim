@@ -22,7 +22,7 @@ $1
 """
 
   if req.reqMethod == HttpPost:
-    let httpbody = await parseBody(req)
+    let httpbody = await newAsyncBodyParser(req)
     var html = "Data:<br /><ul>"
     for k,v in httpbody.formdata:
       html.add("<li>$1 => $2</li>" % [k, v])

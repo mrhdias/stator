@@ -417,7 +417,7 @@ proc processRequestBody(req: Request): Future[AsyncHttpBodyParser] {.async.} =
 
 
 
-proc parseBody*(req: Request, uploadDirectory: string = getTempDir()): Future[AsyncHttpBodyParser] {.async.} =
+proc newAsyncBodyParser*(req: Request, uploadDirectory: string = getTempDir()): Future[AsyncHttpBodyParser] {.async.} =
 
   if req.headers.hasKey("Content-type"):
     if req.headers["Content-type"].len > 32 and req.headers["Content-type"][0 .. 29] == "multipart/form-data; boundary=":

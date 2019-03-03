@@ -30,7 +30,7 @@ $1
       let uploadDir = getTempDir() / $genOid()
 
       # the temporary system directory is the default 
-      let httpbody = await parseBody(req, uploadDirectory=uploadDir)
+      let httpbody = await newAsyncBodyParser(req, uploadDirectory=uploadDir)
 
       var html = "Data:<br />"
       if httpbody.formdata.len > 0:
