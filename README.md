@@ -166,9 +166,9 @@ $1
         html.add("</ul>")
       html.add("</ul>")
       
-    if httpbody.formdata.hasKey("remove_upload_dir") and httpbody.formdata["remove_upload_dir"] == "yes":
-      removeDir(uploadDir)
-      html.add(" (Removed)")
+      if httpbody.formdata.hasKey("remove_upload_dir") and httpbody.formdata["remove_upload_dir"] == "yes":
+        removeDir(uploadDir)
+        html.add(" (Removed)")
 
     await req.respond(Http200, resform % html)
 
