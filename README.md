@@ -131,6 +131,8 @@ proc handler(req: Request) {.async.} =
   File 2: <input type="file" name="testfile-2" accept="text/*"><br /><br />
   Input 1: <input type="text" name="testfield-1" value="Test"><br /><br />
   Input 2: <input type="text" name="testfield-2" value="Test"><br /><br />
+  <input type="checkbox" name="remove_upload_dir" value="yes" checked> Remove Upload Directory<br />
+  <br />
   <input type="submit">
 </form>
 <br>
@@ -163,11 +165,12 @@ $1
         html.add("<li>File Size: $1</li>" % $httpbody.formfiles[k].filesize)
         html.add("</ul>")
       html.add("</ul>")
+      
+    if httpbody.formdata.hasKey("remove_upload_dir") and httpbody.formdata["remove_upload_dir"] == "yes":
+      removeDir(uploadDir)
+      html.add(" (Removed)")
 
-    await req.respond(Http200, htmlpage % html)
-    removeDir(uploadDir)
-
-  await req.respond(Http200, htmlpage % "No data!")
+    await req.respond(Http200, resform % html)
 
 var server = newAsyncHttpServer()
 waitFor server.serve(Port(8080), handler)
