@@ -154,10 +154,21 @@ proc processHeader(raw_headers: seq[string]): Future[(string, Table[string, stri
 
   return (formname, formdata)
 
-
-
+#
+# https://tools.ietf.org/html/rfc7578
+# https://tools.ietf.org/html/rfc2046#section-5.1
+# https://www.w3.org/Protocols/rfc1341/7_2_Multipart.html
+# https://httpstatuses.com/400
+#
 proc processRequestMultipartBody(req: Request, uploadDirectory: string): Future[AsyncHttpBodyParser] {.async.} =
   # echo ">> Begin Process Multipart Body"
+
+  let boundary = "--$1" % req.headers["Content-type"][30 .. req.headers["Content-type"].len-1]
+  # echo ">> Boundary: " & boundary
+  if boundary.len < 3 or boundary.len > 72:
+    await req.complete(false)
+    raise newException(HttpBodyParserError, "Multipart/data malformed request syntax")
+
 
   var httpbody: AsyncHttpBodyParser
   httpbody.formdata = initTable[string, string]()
@@ -174,22 +185,18 @@ proc processRequestMultipartBody(req: Request, uploadDirectory: string): Future[
 
   var remainder = req.content_length
   block parser:
-    let boundary = req.headers["Content-type"][30 .. req.headers["Content-type"].len-1]
-    # echo ">> Boundary: " & boundary
+
+    var count_boundary_chars = 0
+
+    var
+      read_boundary = true
+      find_headers = false
+      read_header = false
+      read_content = true
 
     var
       bag = ""
       buffer = ""
-
-    var
-      read_boundary = false
-      read_headers = false
-      read_header = false
-      read_content = false
-
-    var
-      count_boundary_chars = 0
-      count_dashes = 0
 
     var raw_headers = newSeq[string]()
     var formname = ""
@@ -201,17 +208,27 @@ proc processRequestMultipartBody(req: Request, uploadDirectory: string): Future[
       for i in 0 .. data.len-1:
 
         if read_content:
-          # echo data[i]
+          # echo data[0]
+          
+          # echo ">> Find a Boundary: " & data[i]
           if read_boundary and data[i] == boundary[count_boundary_chars]:
             if count_boundary_chars == boundary.len-1:
+              # echo ">> Boundary found"
+              
+              # begin the suffix of boundary before "\c\L--boundary"
+              if bag.len > 1:
+                bag.removeSuffix("\c\L")
+
               buffer.add(data[i])
+
               #--- begin if there are still characters in the bag ---
-              # boundary len + two dashes + one control char + one newline char = boundary len + 4
-              if ((let diff = buffer.len - (boundary.len + 4)); diff) > 0:
+              # echo "Check the bag: " & buffer & " = " & boundary
+              if ((let diff = buffer.len - boundary.len); diff) > 0:
                 # echo ">> Diferrence: " & $diff
                 bag.add(buffer[0 .. diff - 1])
 
               if bag.len > 0:
+                # echo ">> Empty bag: " & bag & " => " & formname
                 if httpbody.formfiles.hasKey(formname) and httpbody.formfiles[formname].filename.len > 0:
                   await output.write(bag)
                 elif httpbody.formdata.hasKey(formname):
@@ -223,67 +240,37 @@ proc processRequestMultipartBody(req: Request, uploadDirectory: string): Future[
                 httpbody.formfiles[formname].filesize = getFileSize(uploadDirectory / httpbody.formfiles[formname].filename)
 
               #--- end if there are still characters in the bag ---
-              
-              # echo ">> Inner Boundary found"
+
+              find_headers = true
               read_content = false
               read_header = false
-              read_headers = true
-              buffer = ""
               count_boundary_chars = 0
               continue
-              
+
             # echo "On the right path to find the Boundary: " & data[i] & " = " & boundary[count_boundary_chars]
             buffer.add(data[i])
             count_boundary_chars += 1
             continue
 
-          else:
-            # echo "Boundary detection failed: " & data[i] & " = " & boundary[count_boundary_chars]
-            if count_dashes == 2:
-              # If the next character is an "-" the number of characters remains equal to 2.
-              # So check the same character of the boundary
-              if data[i] == '-':
-                buffer.add(data[i])
-                continue
-
-              read_boundary = false
-              count_dashes = 0
-
-          count_boundary_chars = 0
-
-
-          if read_boundary == false:
-            if data[i] == '\c':
-              buffer.add(data[i])
-              continue
-            if data[i] == '\L':
-              buffer.add(data[i])
-              continue
-            if data[i] == '-':
-              if count_dashes == 1:
-                # echo ">> Inner Dashes found"
-                read_boundary = true
-                count_dashes = 2
-                buffer.add(data[i])
-                continue
-              buffer.add(data[i])
-              count_dashes = 1
-              continue
-
+        
           if buffer.len > 0:
             bag.add(buffer)
             buffer = ""
-          bag.add(data[i])
 
+          # if not match teh boundary char add stream char to the bag
+          bag.add(data[i])
+          
           # --- begin empty bag if full ---
           if bag.len > chunkSize:
-            if httpbody.formfiles[formname].filename.len > 0:
+            # echo ">> Empty bag: " & bag
+            if httpbody.formfiles.hasKey(formname) and httpbody.formfiles[formname].filename.len > 0:
               await output.write(bag)
             elif httpbody.formdata.hasKey(formname):
               httpbody.formdata[formname].add(bag)
             bag = ""
           # --- end empty bag if full ---
-          
+
+          count_boundary_chars = 0
           continue
 
 
@@ -292,13 +279,16 @@ proc processRequestMultipartBody(req: Request, uploadDirectory: string): Future[
           if data[i] == '\L':
             if buffer.len == 0:
               read_header = false
-              read_boundary = false
               read_content = true
+              # echo ">> Process headers"
               #--- begin process headers ---
+
               if raw_headers.len > 0:
+                # echo ">> Raw Headers: " & $raw_headers
                 let (name, form) = await processHeader(raw_headers)
 
                 formname = name
+                # echo ">> Form Name: " & formname
                 #---begin check the type if is a filename or a data value
                 if form.hasKey("filename"):
                   var fileattr = initFileAttributes(form)
@@ -319,59 +309,40 @@ proc processRequestMultipartBody(req: Request, uploadDirectory: string): Future[
                   httpbody.formdata.add(name, form["data"])
                 raw_headers.setLen(0)
                 #-- end check the type if is a filename or a data value
+
               #--- end process headers ---
               continue
-            # echo ">> Header: " & buffer
+
+            # echo ">> Header Line: " & buffer
             raw_headers.add(buffer)
             buffer = ""
             bag = ""
             continue
+
           buffer.add(data[i])
           continue
 
 
-        if read_headers:
+        if find_headers:
+          # echo ">> Find the tail of Boundary: " & buffer & " = " & buffer[buffer.len - 2 .. buffer.len - 1]
+          if buffer[buffer.len - 2 .. buffer.len - 1] == "--":
+            # echo ">> Tail of Boundary found"
+            buffer = ""
+            break parser
+
           if data[i] == '-':
-            if count_dashes == 1:
-              # echo ">> Tail of Boundary found"
-              break parser
-            count_dashes = 1
+            buffer.add(data[i])
             continue
-            
-          if data[i] == '\c':
-            continue
+          if data[i] == '\c': continue
           if data[i] == '\L':
             read_header = true
+            buffer = ""
             continue
 
-
-        if read_boundary and data[i] == boundary[count_boundary_chars]:
-          if count_boundary_chars == boundary.len-1:
-            # echo ">> Head of Boundary found"
-            read_headers = true
-            count_boundary_chars = 0
-            continue
-          count_boundary_chars += 1
-          continue
-        count_boundary_chars = 0
-
-
-        if read_boundary == false and data[i] == '-':
-          if count_dashes == 1:
-            # echo ">> Head Dashes found"
-            read_boundary = true
-            count_dashes = 0
-            continue
-          count_dashes = 1
-          continue
-        # count_dashes = 0
-
-
-        ## https://httpstatuses.com/400
         await req.complete(false)
         raise newException(HttpBodyParserError, "Multipart/data malformed request syntax")
 
-
+ 
   # echo ">> Multipart Body Request Remainder: " & $remainder
 
   await req.complete(if remainder == 0: true else: false)
