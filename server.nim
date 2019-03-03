@@ -41,6 +41,8 @@ function test_json() {
       // Examine the text in the response
       response.json().then(function(data) {
         //console.log(data);
+        document.getElementById("login").value = ""
+        document.getElementById("password").value = ""
         alert(JSON.stringify(data));
       });
     }
@@ -114,36 +116,40 @@ $1
 
   if req.reqMethod == HttpPost:
     if req.url.path == "/multipart":
-      let uploadDir = getTempDir() / $genOid()
-
-      # the temporary system directory is the default 
-      let httpbody = await parseBody(req, uploadDirectory=uploadDir)
-
-      var html = "Data:<br />"
-      if httpbody.formdata.len > 0:
-        html.add("<ul>")
-        for k,v in httpbody.formdata:
-          html.add("<li>$1 => $2</li>" % [k, v])
-        html.add("</ul>")
-
-      html.add("Files:<br />")
-      if httpbody.formfiles.len > 0:
-        html.add("<ul>")
-        for k,f in httpbody.formfiles:
-          html.add("<li>$1:</li>" % k)
+      try:
+        let uploadDir = getTempDir() / $genOid()
+  
+        # the temporary system directory is the default 
+        let httpbody = await parseBody(req, uploadDirectory=uploadDir)
+  
+        var html = "Data:<br />"
+        if httpbody.formdata.len > 0:
           html.add("<ul>")
-          html.add("<li>Filename: $1</li>" % httpbody.formfiles[k].filename)
-          html.add("<li>Content-Type: $1</li>" % httpbody.formfiles[k].content_type)
-          html.add("<li>File Size: $1</li>" % $httpbody.formfiles[k].filesize)
+          for k,v in httpbody.formdata:
+            html.add("<li>$1 => $2</li>" % [k, v])
           html.add("</ul>")
-        html.add("</ul>")
-        html.add("Upload Directory: $1" % uploadDir)
-        
-        if httpbody.formdata.hasKey("remove_upload_dir") and httpbody.formdata["remove_upload_dir"] == "yes":
-          removeDir(uploadDir)
-          html.add(" (Removed)")
+  
+        html.add("Files:<br />")
+        if httpbody.formfiles.len > 0:
+          html.add("<ul>")
+          for k,f in httpbody.formfiles:
+            html.add("<li>$1:</li>" % k)
+            html.add("<ul>")
+            html.add("<li>Filename: $1</li>" % httpbody.formfiles[k].filename)
+            html.add("<li>Content-Type: $1</li>" % httpbody.formfiles[k].content_type)
+            html.add("<li>File Size: $1</li>" % $httpbody.formfiles[k].filesize)
+            html.add("</ul>")
+          html.add("</ul>")
+          html.add("Upload Directory: $1" % uploadDir)
+          
+          if httpbody.formdata.hasKey("remove_upload_dir") and httpbody.formdata["remove_upload_dir"] == "yes":
+            removeDir(uploadDir)
+            html.add(" (Removed)")
 
-      await req.respond(Http200, resform % html)
+          await req.respond(Http200, resform % html)
+
+      except HttpBodyParserError:
+        await req.respond(Http422, "Multipart/data malformed request syntax")
 
     elif req.url.path == "/form":
       let httpbody = await parseBody(req)
