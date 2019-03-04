@@ -79,32 +79,24 @@ proc splitInTwo(s: string, c: char): (string, string) =
   return (head, s[p .. high(s)])
 
 
+
 proc incCounterInFilename(filename: string): string =
-  # " (1).txt"
-  if not (filename.len > 4 and filename[filename.len-1] == ')'):
-    return "$1 (1)" % filename
+  if filename.len == 0: return ""
 
-  var strnumber = ""
-  var starter = false
-  var i = -1
-  for c in filename:
-    i += 1
+  var p = filename.high
+  if p > 0 and filename[p] == ')':
+    var strnumber = ""
+    while isDigit(filename[p-1]):
+      strnumber = filename[p-1] & strnumber
+      p -= 1
 
-    if starter:
-      if isDigit(c):
-        strnumber.add(c)
-        continue
-      if c == ')' and i == high(filename):
-        break
-      strnumber = ""
-      starter = false
+    if p > 1 and filename[p-1] == '(' and filename[p-2] == ' ':
+      let number: int = parseInt(strnumber)
+      if number > 0:
+        return "$1 ($2)" % [filename[0 .. p - 3], intToStr(number + 1)]
 
-    if i > 1 and filename[i-1] == ' ' and c == '(':
-      starter = true
-      continue
+  return "$1 (1)" % filename
 
-  let number: int = parseInt(strnumber)
-  return if number > 0 and strnumber.len > 0: "$1 ($2)" % [filename[0 .. (filename.len - strnumber.len) - 1 - 3], intToStr(number + 1)] else: filename
 
 
 proc testFilename(tmpdir: string, filename: var string): string =
