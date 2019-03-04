@@ -69,6 +69,16 @@ const characterSet = {
 proc decodeString(encoded: string): string = Rune(if characterSet.hasKey(encoded): characterSet[encoded] else: 0x0000).toUTF8
 
 
+proc splitInTwo(s: string, c: char): (string, string) =
+  var p = find(s, c)
+  if not (p > 0 and p < high(s)):
+    return ("", "")
+
+  let head = s[0 .. p-1]
+  p += 1; while s[p] == ' ': p += 1
+  return (head, s[p .. high(s)])
+
+
 proc incCounterInFilename(filename: string): string =
   # " (1).txt"
   if not (filename.len > 4 and filename[filename.len-1] == ')'):
@@ -84,7 +94,7 @@ proc incCounterInFilename(filename: string): string =
       if isDigit(c):
         strnumber.add(c)
         continue
-      if c == ')' and i == filename.len-1:
+      if c == ')' and i == high(filename):
         break
       strnumber = ""
       starter = false
@@ -115,6 +125,39 @@ proc testFilename(tmpdir: string, filename: var string): string =
 
 
 
+proc splitContentDisposition(s: string): (string, seq[string]) =
+  var parts = newSeq[string]()
+
+  var first_parameter = ""
+  var buff = ""
+  var p = 0
+  while p < s.len:
+    if s[p] == ';':
+      if p > 0 and s[p-1] == '"':
+        parts.add(buff)
+        buff = ""
+
+      if first_parameter.len == 0:
+        if buff.len == 0: break
+        first_parameter = buff
+        buff = ""
+
+      if buff == "":
+        p += 1; while p < s.len and s[p] == ' ': p += 1
+        continue
+    buff.add(s[p])
+    p += 1
+
+  if buff.len > 0 and buff[high(buff)] == '"':
+    parts.add(buff)
+
+  return (first_parameter, parts)
+
+
+
+#
+# https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Disposition
+#
 proc processHeader(raw_headers: seq[string]): Future[(string, Table[string, string])] {.async.} =
 
   var
@@ -123,25 +166,25 @@ proc processHeader(raw_headers: seq[string]): Future[(string, Table[string, stri
     content_type = ""
 
   for raw_header in raw_headers:
-    let raw_header_parts = raw_header.split(": ", maxsplit=1)
-    if raw_header_parts.len == 2:
-      if raw_header_parts[0] == "Content-Disposition":
-        let content_disposition_parts = raw_header_parts[1].split("; ")
-        for content_disposition_part in content_disposition_parts:
-          if content_disposition_part == "form-data": continue
-          let pair = content_disposition_part.split("=", maxsplit=1)
-          if pair.len == 2:
-            let value = if pair[1][0] == '"' and pair[1][pair[1].len-1] == '"': pair[1][1 .. pair[1].len-2] else: pair[1]
-            # echo ">> Pair: " & pair[0] & " = " & value
-            if value.len > 0:
-              if pair[0] == "name":
-                formname = value
-            if pair[0] == "filename":
-              filename = value
+    # echo ">> Raw Header: " & raw_header
+    let (h_head, h_tail) = splitInTwo(raw_header, ':')
+    if h_head == "Content-Disposition":
+      let (first_parameter, content_disposition_parts) = splitContentDisposition(h_tail)
+      if first_parameter != "form-data": continue
+      for content_disposition_part in content_disposition_parts:
+        let pair = content_disposition_part.split("=", maxsplit=1)
+        if pair.len == 2:
+          let value = if pair[1][0] == '"' and pair[1][high(pair[1])] == '"': pair[1][1 .. pair[1].len-2] else: pair[1]
+          # echo ">> Pair: " & pair[0] & " = " & value
+          if value.len > 0:
+            if pair[0] == "name":
+              formname = value
+          if pair[0] == "filename":
+            filename = value
 
-      elif raw_header_parts[0] == "Content-Type":
-        # echo ">> Raw Header: " & raw_header_parts[0] & " = " & raw_header_parts[1]
-        content_type = raw_header_parts[1]
+    elif h_head == "Content-Type":
+      # echo ">> Raw Header: " & h_head & " = " & h_tail
+      content_type = h_tail
 
   var formdata = initTable[string, string]()
   if filename.len > 0 or content_type.len > 0:
@@ -163,7 +206,7 @@ proc processHeader(raw_headers: seq[string]): Future[(string, Table[string, stri
 proc processRequestMultipartBody(req: Request, uploadDirectory: string): Future[AsyncHttpBodyParser] {.async.} =
   # echo ">> Begin Process Multipart Body"
 
-  let boundary = "--$1" % req.headers["Content-type"][30 .. req.headers["Content-type"].len-1]
+  let boundary = "--$1" % req.headers["Content-type"][30 .. high(req.headers["Content-type"])]
   # echo ">> Boundary: " & boundary
   if boundary.len < 3 or boundary.len > 72:
     await req.complete(false)
@@ -212,7 +255,7 @@ proc processRequestMultipartBody(req: Request, uploadDirectory: string): Future[
           
           # echo ">> Find a Boundary: " & data[i]
           if read_boundary and data[i] == boundary[count_boundary_chars]:
-            if count_boundary_chars == boundary.len-1:
+            if count_boundary_chars == high(boundary):
               # echo ">> Boundary found"
               
               # begin the suffix of boundary before "\c\L--boundary"
@@ -325,7 +368,7 @@ proc processRequestMultipartBody(req: Request, uploadDirectory: string): Future[
 
         if find_headers:
           # echo ">> Find the tail of Boundary: " & buffer & " = " & buffer[buffer.len - 2 .. buffer.len - 1]
-          if buffer[buffer.len - 2 .. buffer.len - 1] == "--":
+          if buffer[high(buffer) - 1 .. high(buffer)] == "--":
             # echo ">> Tail of Boundary found"
             buffer = ""
             break parser
@@ -367,7 +410,7 @@ proc processRequestBody(req: Request): Future[AsyncHttpBodyParser] {.async.} =
     let data = await req.client.recv(if remainder < chunkSize: remainder else: chunkSize)
 
     remainder -= data.len
-    for i in 0 .. data.len-1:
+    for i in 0 .. high(data):
       # echo data[i]
       if name.len > 0 and data[i] == '&':
         # echo ">> End of the value found"
