@@ -1,5 +1,5 @@
-import ../asynchttpserver, asyncdispatch
-import ../asynchttpbodyparser
+import asynchttpserver, asyncdispatch
+import asynchttpbodyparser
 import strutils
 
 proc handler(req: Request) {.async.} =
