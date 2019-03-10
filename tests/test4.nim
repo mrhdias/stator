@@ -76,7 +76,8 @@ function test_json() {
       let headers = newHttpHeaders([("Content-Type","application/json")])
       await req.respond(Http200, $msg, headers)
 
-  await req.respond(Http200, htmlpage)
+  else:
+    await req.respond(Http200, htmlpage)
 
 var server = newAsyncHttpServer()
 waitFor server.serve(Port(8080), handler)

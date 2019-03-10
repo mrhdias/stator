@@ -29,8 +29,8 @@ $1
     html.add("</ul>")
 
     await req.respond(Http200, htmlpage % html)
-
-  await req.respond(Http200, htmlpage % "No data!")
+  else:
+    await req.respond(Http200, htmlpage % "No data!")
 
 var server = newAsyncHttpServer()
 waitFor server.serve(Port(8080), handler)

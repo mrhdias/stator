@@ -30,8 +30,10 @@ Raw Data: $1
       else:
         await req.complete(false)
         await req.respond(Http400, "Bad Request. Content-Length does not match actual.")
-
-  await req.respond(Http200, htmlpage % "No data!")
+    else:
+      await req.respond(Http400, "Bad Request. Content-Length is zero!")
+  else:
+    await req.respond(Http200, htmlpage % "No data!")
 
 var server = newAsyncHttpServer()
 waitFor server.serve(Port(8080), handler)

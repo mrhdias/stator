@@ -61,7 +61,8 @@ $1
     except HttpBodyParserError:
       await req.respond(Http422, "Multipart/data malformed request syntax")
 
-  await req.respond(Http200, htmlpage % "No data!")
+  else:
+    await req.respond(Http200, htmlpage % "No data!")
 
 var server = newAsyncHttpServer()
 waitFor server.serve(Port(8080), handler)

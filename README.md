@@ -63,8 +63,10 @@ Raw Data: $1
       else:
         await req.complete(false)
         await req.respond(Http400, "Bad Request. Content-Length does not match actual.")
-
-  await req.respond(Http200, htmlpage % "No data!")
+    else:
+      await req.respond(Http400, "Bad Request. Content-Length is zero!")
+  else:
+    await req.respond(Http200, htmlpage % "No data!")
 
 var server = newAsyncHttpServer()
 waitFor server.serve(Port(8080), handler)
@@ -104,8 +106,8 @@ $1
     html.add("</ul>")
 
     await req.respond(Http200, htmlpage % html)
-
-  await req.respond(Http200, htmlpage % "No data!")
+  else:
+    await req.respond(Http200, htmlpage % "No data!")
 
 var server = newAsyncHttpServer()
 waitFor server.serve(Port(8080), handler)
@@ -172,10 +174,13 @@ $1
           removeDir(uploadDir)
           html.add(" (Removed)")
 
-      except HttpBodyParserError:
-        await req.respond(Http422, "Multipart/data malformed request syntax")
+      await req.respond(Http200, htmlpage % html)
 
-    await req.respond(Http200, resform % html)
+    except HttpBodyParserError:
+      await req.respond(Http422, "Multipart/data malformed request syntax")
+
+  else:
+    await req.respond(Http200, htmlpage % "No data!")
 
 var server = newAsyncHttpServer()
 waitFor server.serve(Port(8080), handler)
@@ -261,8 +266,8 @@ function test_json() {
 
       let headers = newHttpHeaders([("Content-Type","application/json")])
       await req.respond(Http200, $msg, headers)
-
-  await req.respond(Http200, htmlpage)
+  else:
+    await req.respond(Http200, htmlpage)
 
 var server = newAsyncHttpServer()
 waitFor server.serve(Port(8080), handler)
