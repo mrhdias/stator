@@ -274,7 +274,7 @@ var server = newAsyncHttpServer()
 waitFor server.serve(Port(8080), handler)
 ```
 
-### File Server:
+### Serving Static Files:
 
 ```nim
 import asynchttpserver, asyncdispatch, asyncfile
