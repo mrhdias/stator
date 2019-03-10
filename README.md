@@ -168,7 +168,8 @@ $1
           html.add("<li>File Size: $1</li>" % $httpbody.formfiles[k].filesize)
           html.add("</ul>")
         html.add("</ul>")
-      
+        html.add("Upload Directory: $1" % uploadDir)
+
         if httpbody.formdata.hasKey("remove_upload_dir") and
             httpbody.formdata["remove_upload_dir"] == "yes":
           removeDir(uploadDir)
