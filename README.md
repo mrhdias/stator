@@ -352,7 +352,7 @@ proc handler(req: Request) {.async.} =
       await file.write(svgimg)
       file.close()
 
-      # The parameter "staticDir" is optional.
+      # The argument "staticDir" is optional.
       # The default is "static/public" directory
       # but the directory must exist to serve files.
       await req.fileserver(staticDir=my_static_dir)
