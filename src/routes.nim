@@ -21,3 +21,7 @@ template via*(rule_path: string, reqMethods: seq[string], code_to_execute: untyp
   if $req.reqMethod in reqMethods and req.url.path == rule_path:
     code_to_execute
     break routes
+
+template routes(body: untyped): untyped {.dirty.}=
+  block routes:
+    body
