@@ -28,6 +28,12 @@ This is Work in Progress!
 
 ## Examples
 
+* [Read Raw Data From the Post Request Stream](#serving-static-files)
+* [Parse Post Request and Get the Name and Value Pair](#parse-multipart-post-requests-file-uploads)
+* [Parse Multipart Post Requests (File Uploads)](#serving-static-files)
+* [Parse Json Ajax Request](#parse-json-ajax-request)
+* [Serving Static Files](#serving-static-files)
+
 ### Read Raw Data From the Post Request Stream:
 
 ```nim
@@ -68,7 +74,7 @@ Raw Data: $1
   else:
     await req.respond(Http200, htmlpage % "No data!")
 
-var server = newAsyncHttpServer()
+let server = newAsyncHttpServer()
 waitFor server.serve(Port(8080), handler)
 ```
 
@@ -109,7 +115,7 @@ $1
   else:
     await req.respond(Http200, htmlpage % "No data!")
 
-var server = newAsyncHttpServer()
+let server = newAsyncHttpServer()
 waitFor server.serve(Port(8080), handler)
 ```
 
@@ -183,7 +189,7 @@ $1
   else:
     await req.respond(Http200, htmlpage % "No data!")
 
-var server = newAsyncHttpServer()
+let server = newAsyncHttpServer()
 waitFor server.serve(Port(8080), handler)
 ```
 
@@ -270,7 +276,7 @@ function test_json() {
   else:
     await req.respond(Http200, htmlpage)
 
-var server = newAsyncHttpServer()
+let server = newAsyncHttpServer()
 waitFor server.serve(Port(8080), handler)
 ```
 
@@ -360,6 +366,6 @@ proc handler(req: Request) {.async.} =
   else:
     await req.respond(Http405, "Method Not Allowed")
 
-var server = newAsyncHttpServer()
+let server = newAsyncHttpServer()
 waitFor server.serve(Port(8080), handler)
 ```
