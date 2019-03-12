@@ -22,6 +22,6 @@ template via*(rule_path: string, reqMethods: seq[string], code_to_execute: untyp
     code_to_execute
     break routes
 
-template routes(body: untyped): untyped {.dirty.}=
+template routes*(body: untyped): untyped {.dirty.}=
   block routes:
     body
