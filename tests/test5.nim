@@ -1,7 +1,6 @@
 import asyncdispatch, asyncfile
 import os, strutils
-import ../src/asynchttpserver
-import ../src/asynchttpfileserver
+import enigma/[asynchttpserver, asynchttpfileserver]
 
 proc handler(req: Request) {.async.} =
   let htmlpage = """
