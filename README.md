@@ -6,11 +6,11 @@ Install nim and run this command (I just tested on Linux)
 
         $ git clone https://github.com/mrhdias/EnigmaHTTPServer
         $ cd EnigmaHTTPServer
-        $ nim c -p:src -r server.nim
+        $ nim c -p:../ -r server.nim
         
         # Run the tests (1 to 4):
         $ cd tests
-        $ nim c -p:../src -r test1.nim
+        $ nim c -p:../ -r test1.nim
 
 Open your browser and type in the URL http://127.0.0.1:8080
 
@@ -37,8 +37,8 @@ This is Work in Progress!
 ### Read Raw Data From the Post Request Stream:
 
 ```nim
-import asynchttpserver, asyncdispatch
-import asynchttpbodyparser
+import asyncdispatch
+import enigma/[asynchttpserver, asynchttpbodyparser]
 import strutils
 
 proc handler(req: Request) {.async.} =
@@ -81,8 +81,8 @@ waitFor server.serve(Port(8080), handler)
 ### Parse Post Request and Get the Name and Value Pair:
 
 ```nim
-import asynchttpserver, asyncdispatch
-import asynchttpbodyparser
+import asyncdispatch
+import enigma/[asynchttpserver, asynchttpbodyparser]
 import strutils
 
 proc handler(req: Request) {.async.} =
@@ -122,8 +122,8 @@ waitFor server.serve(Port(8080), handler)
 ### Parse Multipart Post Requests (File Uploads):
 
 ```nim
-import asynchttpserver, asyncdispatch
-import asynchttpbodyparser
+import asyncdispatch
+import enigma/[asynchttpserver, asynchttpbodyparser]
 import os, strutils, oids
 
 proc handler(req: Request) {.async.} =
@@ -196,8 +196,8 @@ waitFor server.serve(Port(8080), handler)
 ### Parse Json Ajax Request:
 
 ```nim
-import asynchttpserver, asyncdispatch
-import asynchttpbodyparser
+import asyncdispatch
+import enigma/[asynchttpserver, asynchttpbodyparser]
 import strutils, json
 
 proc handler(req: Request) {.async.} =
@@ -283,8 +283,8 @@ waitFor server.serve(Port(8080), handler)
 ### Serving Static Files:
 
 ```nim
-import asynchttpserver, asyncdispatch, asyncfile
-import asynchttpfileserver
+import asyncdispatch, asyncfile
+import enigma/[asynchttpserver, asynchttpfileserver]
 import os, strutils
 
 proc handler(req: Request) {.async.} =
