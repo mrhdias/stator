@@ -1,6 +1,7 @@
-import asynchttpserver, asyncdispatch, asyncfile
-import asynchttpfileserver
+import asyncdispatch, asyncfile
 import os, strutils
+import ../src/asynchttpserver
+import ../src/asynchttpfileserver
 
 proc handler(req: Request) {.async.} =
   let htmlpage = """
