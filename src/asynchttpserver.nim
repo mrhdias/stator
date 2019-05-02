@@ -14,9 +14,8 @@
 ## application you should use a reverse proxy (for example nginx) instead of
 ## allowing users to connect directly to this server.
 ##
-##
-## Examples
-## --------
+## Basic usage
+## ===========
 ##
 ## This example will create an HTTP server on port 8080. The server will
 ## respond to all requests with a ``200 OK`` response code and "Hello World"
@@ -89,8 +88,8 @@ proc respond*(req: Request, code: HttpCode, content: string,
   ##
   ## This procedure will **not** close the client socket.
   ##
-  ## Examples
-  ## --------
+  ## Example:
+  ##
   ## .. code-block::nim
   ##    import json
   ##    proc handler(req: Request) {.async.} =
@@ -168,12 +167,13 @@ proc processRequest(
   request.hostname.shallowCopy(address)
   assert client != nil
   request.client = client
-  
+
   # begin: inserted by hdias 2019-03-02
   var remainder = false
   request.complete = proc(status: bool) {.async.} =
     remainder = not status
   # end
+
 
   # We should skip at least one empty line before the request
   # https://tools.ietf.org/html/rfc7230#section-3.5
@@ -260,18 +260,18 @@ proc processRequest(
       if contentLength > server.maxBody:
         await request.respondError(Http413)
         return false
-        
+
       # begin: commented on by hdias 2019-03-02
       # request.body = await client.recv(contentLength)
       # if request.body.len != contentLength:
       #   await request.respond(Http400, "Bad Request. Content-Length does not match actual.")
       #   return true
       # end
-      
+
       # begin inserted by hdias 2019-03-02
       request.content_length = contentLength
       # end
-
+      
   elif request.reqMethod == HttpPost:
     await request.respond(Http411, "Content-Length required.")
     return true
@@ -285,8 +285,6 @@ proc processRequest(
     await request.respond(Http400, "Bad Request. Content-Length does not match actual.")
     return true
   # end
-
-
 
   if "upgrade" in request.headers.getOrDefault("connection"):
     return false
