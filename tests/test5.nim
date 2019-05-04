@@ -71,7 +71,7 @@ proc handler(req: Request) {.async.} =
       file.close()
 
       # The argument "staticDir" is optional.
-      # The default is "static/public" directory
+      # The default is "static" directory
       # but the directory must exist to serve files.
       await req.fileserver(staticDir=my_static_dir)
       removeDir(my_static_dir)

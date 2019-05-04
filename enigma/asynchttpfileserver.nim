@@ -96,7 +96,7 @@ proc send_file(req: Request, filepath: string, headers: HttpHeaders = nil): Futu
 
 
 
-proc fileserver*(req: Request, staticDir="static" / "public"): Future[void] {.async.} =
+proc fileserver*(req: Request, staticDir="static"): Future[void] {.async.} =
   var url_path = req.url.path
   if ((let p = url_path.find('?')); p > -1):
     url_path = url_path[0 .. p-1]
