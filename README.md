@@ -6,7 +6,7 @@ Install nim and run this command (I just tested on Linux)
 
         $ git clone https://github.com/mrhdias/StatorHTTPServer
         $ cd StatorHTTPServer
-        $ nim c -p:../ -r server.nim
+        $ nim c -p:../ -r examples/server.nim
         
         # Run the tests (1 to 4):
         $ cd tests
