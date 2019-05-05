@@ -1,7 +1,7 @@
 import os, strutils, oids
 import json
 import asyncdispatch, asyncfile
-import enigma/[asynchttpserver, asynchttpbodyparser, asynchttpfileserver]
+import stator/[asynchttpserver, asynchttpbodyparser, asynchttpfileserver]
 
 proc handler(req: Request) {.async.} =
   let form = """<!Doctype html>

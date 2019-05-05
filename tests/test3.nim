@@ -1,6 +1,6 @@
 import asyncdispatch
 import os, strutils, oids
-import enigma/[asynchttpserver, asynchttpbodyparser]
+import stator/[asynchttpserver, asynchttpbodyparser]
 
 proc handler(req: Request) {.async.} =
   let htmlpage = """

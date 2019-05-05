@@ -1,11 +1,11 @@
-# Enigma - HTTP Server
+# Stator - HTTP Server
 Experiment write in [Nim](https://nim-lang.org/) to handle the http POST request body.
 
 ## How to test?
 Install nim and run this command (I just tested on Linux)
 
-        $ git clone https://github.com/mrhdias/EnigmaHTTPServer
-        $ cd EnigmaHTTPServer
+        $ git clone https://github.com/mrhdias/StatorHTTPServer
+        $ cd StatorHTTPServer
         $ nim c -p:../ -r server.nim
         
         # Run the tests (1 to 4):
@@ -38,7 +38,7 @@ This is Work in Progress!
 
 ```nim
 import asyncdispatch
-import enigma/[asynchttpserver, asynchttpbodyparser]
+import stator/[asynchttpserver, asynchttpbodyparser]
 import strutils
 
 proc handler(req: Request) {.async.} =
@@ -82,7 +82,7 @@ waitFor server.serve(Port(8080), handler)
 
 ```nim
 import asyncdispatch
-import enigma/[asynchttpserver, asynchttpbodyparser]
+import stator/[asynchttpserver, asynchttpbodyparser]
 import strutils
 
 proc handler(req: Request) {.async.} =
@@ -123,7 +123,7 @@ waitFor server.serve(Port(8080), handler)
 
 ```nim
 import asyncdispatch
-import enigma/[asynchttpserver, asynchttpbodyparser]
+import stator/[asynchttpserver, asynchttpbodyparser]
 import os, strutils, oids
 
 proc handler(req: Request) {.async.} =
@@ -197,7 +197,7 @@ waitFor server.serve(Port(8080), handler)
 
 ```nim
 import asyncdispatch
-import enigma/[asynchttpserver, asynchttpbodyparser]
+import stator/[asynchttpserver, asynchttpbodyparser]
 import strutils, json
 
 proc handler(req: Request) {.async.} =
@@ -284,7 +284,7 @@ waitFor server.serve(Port(8080), handler)
 
 ```nim
 import asyncdispatch, asyncfile
-import enigma/[asynchttpserver, asynchttpfileserver]
+import stator/[asynchttpserver, asynchttpfileserver]
 import os, strutils
 
 proc handler(req: Request) {.async.} =
