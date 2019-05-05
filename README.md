@@ -28,9 +28,9 @@ This is Work in Progress!
 
 ## Examples
 
-* [Read Raw Data From the Post Request Stream](#serving-static-files)
-* [Parse Post Request and Get the Name and Value Pair](#parse-multipart-post-requests-file-uploads)
-* [Parse Multipart Post Requests (File Uploads)](#serving-static-files)
+* [Read Raw Data From the Post Request Stream](#read-raw-data-from-the-post-request-stream)
+* [Parse Post Request and Get the Name and Value Pair](#parse-post-request-and-get-the-name-and-value-pair)
+* [Parse Multipart Post Requests (File Uploads)](#parse-multipart-post-requests-file-uploads)
 * [Parse Json Ajax Request](#parse-json-ajax-request)
 * [Serving Static Files](#serving-static-files)
 
