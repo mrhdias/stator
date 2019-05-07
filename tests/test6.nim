@@ -40,7 +40,7 @@ proc testRegex(req: Request, user: string) {.async.} =
 
 proc handler(req: Request) {.async.} =
 
-  block routes:
+  routes:
 
     via("/", @["GET"]):
       await req.home()
@@ -54,8 +54,8 @@ proc handler(req: Request) {.async.} =
     via(r".+/([a-z]+\.[a-z]+)$".re, @["GET"]):
       await req.respond(Http404, "File \"$1\" not found!" % captures[0])
 
-  # if unknow route
-  await req.fileserver()
+    # if unknow route
+    await req.fileserver()
 
 var server = newAsyncHttpServer(maxBody=10240)
 waitFor server.serve(Port(8080), handler)
