@@ -1,5 +1,5 @@
 # Stator - HTTP Server
-Stator - Exprimental HTTP Server write in [Nim](https://nim-lang.org/).
+Experimental and very young HTTP Server write in [Nim](https://nim-lang.org/).
 
 ## How to test?
 Install nim and run this command (I just tested on Linux)
