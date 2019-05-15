@@ -3,15 +3,18 @@
 # MIT License - Look at LICENSE for details.
 #
 import macros
+import re
 import asyncdispatch
 from strutils import `%`
-import stator/[routes, asynchttpserver, asynchttpbodyparser, asynchttpserver, basicauth]
+import stator/[routes, asynchttpserver, asynchttpbodyparser, asynchttpserver, asynchttpfileserver, basicauth]
 
 export asyncdispatch
+export re
 export routes
 export asynchttpserver
 export asynchttpbodyparser
 export asynchttpserver
+export asynchttpfileserver
 export basicauth
 
 type
