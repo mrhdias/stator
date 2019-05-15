@@ -2,7 +2,7 @@
 Experimental and very young HTTP Server write in [Nim](https://nim-lang.org/).
 
 ## How to test?
-Install nim and run this command (I have only tested with the 0.19.4 version of Nim and Linux)
+Install nim and run this command (Tested with the 0.19.6 version of Nim and Linux)
 
         $ git clone https://github.com/mrhdias/StatorHTTPServer
         $ cd StatorHTTPServer
