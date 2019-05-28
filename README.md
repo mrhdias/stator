@@ -373,7 +373,7 @@ let server = newAsyncHttpServer()
 waitFor server.serve(Port(8080), handler)
 ```
 
-### Serving Static Files:
+### Routes:
 
 ```nim
 import stator
