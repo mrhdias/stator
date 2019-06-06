@@ -54,7 +54,7 @@ type
     body*: string
     # begin: inserted by hdias 2019-03-02
     content_length*: int
-    complete*: proc (status: bool): Future[void]
+    complete*: proc (status: bool): Future[void] {.gcsafe.}
     # end
 
   AsyncHttpServer* = ref object
@@ -105,7 +105,7 @@ proc respond*(req: Request, code: HttpCode, content: string,
     msg.addHeaders(headers)
   msg.add("Content-Length: ")
   # this particular way saves allocations:
-  msg.add content.len
+  msg.addInt content.len
   msg.add "\c\L\c\L"
   msg.add(content)
   result = req.client.send(msg)
