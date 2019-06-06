@@ -7,7 +7,7 @@
 #    distribution, for details about the copyright.
 #
 import asyncnet, asynchttpserver, asyncdispatch, asyncfile
-import os, ospaths
+import os
 import strutils
 import tables
 
