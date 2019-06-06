@@ -104,7 +104,7 @@ proc testFilename(tmpdir: string, filename: var string): string =
     filename = "unknown"
 
   var path = ""
-  var count = 0;
+  # var count = 0;
   while true:
     path = tmpdir / filename
     if not fileExists(path):
