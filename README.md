@@ -10,7 +10,7 @@ Install nim and run this command (Tested with Nim v0.20.0 (1.0 RC) on Linux)
         $ cd StatorHTTPServer
         $ nim c -p:../ -r examples/server.nim
         
-        # Run the tests (1 to 4):
+        # Run the tests (1 to 8):
         $ cd tests
         $ nim c -p:../ -r test1.nim
 
