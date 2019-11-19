@@ -7,7 +7,7 @@
 #    distribution, for details about the copyright.
 #
 import asyncnet, asyncdispatch, asynchttpserver, asyncfile
-import os, tables, strutils, unicode
+import os, tables, strutils
 export asyncnet, tables
 import httpcore
 
