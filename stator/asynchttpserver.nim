@@ -50,7 +50,7 @@ type
     headers*: HttpHeaders
     protocol*: tuple[orig: string, major, minor: int]
     url*: Uri
-    hostname*: string ## The hostname of the client that made the request.
+    hostname*: string    ## The hostname of the client that made the request.
     body*: string
     # begin: inserted by hdias 2019-03-02
     content_length*: int
@@ -105,6 +105,7 @@ proc respond*(req: Request, code: HttpCode, content: string,
     msg.addHeaders(headers)
   msg.add("Content-Length: ")
   # this particular way saves allocations:
+  # msg.add content.len: commented and inserted by hdias 2019-11-19
   msg.addInt content.len
   msg.add "\c\L\c\L"
   msg.add(content)
@@ -132,20 +133,6 @@ proc parseProtocol(protocol: string): tuple[orig: string, major, minor: int] =
 proc sendStatus(client: AsyncSocket, status: string): Future[void] =
   client.send("HTTP/1.1 " & status & "\c\L\c\L")
 
-proc parseUppercaseMethod(name: string): HttpMethod =
-  result =
-    case name
-    of "GET": HttpGet
-    of "POST": HttpPost
-    of "HEAD": HttpHead
-    of "PUT": HttpPut
-    of "DELETE": HttpDelete
-    of "PATCH": HttpPatch
-    of "OPTIONS": HttpOptions
-    of "CONNECT": HttpConnect
-    of "TRACE": HttpTrace
-    else: raise newException(ValueError, "Invalid HTTP method " & name)
-
 proc processRequest(
   server: AsyncHttpServer,
   req: FutureVar[Request],
@@ -167,20 +154,19 @@ proc processRequest(
   request.hostname.shallowCopy(address)
   assert client != nil
   request.client = client
-
+  
   # begin: inserted by hdias 2019-03-02
   var remainder = false
   request.complete = proc(status: bool) {.async.} =
     remainder = not status
   # end
 
-
   # We should skip at least one empty line before the request
   # https://tools.ietf.org/html/rfc7230#section-3.5
   for i in 0..1:
     lineFut.mget().setLen(0)
     lineFut.clean()
-    await client.recvLineInto(lineFut, maxLength=maxLine) # TODO: Timeouts.
+    await client.recvLineInto(lineFut, maxLength = maxLine) # TODO: Timeouts.
 
     if lineFut.mget == "":
       client.close()
@@ -198,9 +184,17 @@ proc processRequest(
   for linePart in lineFut.mget.split(' '):
     case i
     of 0:
-      try:
-        request.reqMethod = parseUppercaseMethod(linePart)
-      except ValueError:
+      case linePart
+      of "GET": request.reqMethod = HttpGet
+      of "POST": request.reqMethod = HttpPost
+      of "HEAD": request.reqMethod = HttpHead
+      of "PUT": request.reqMethod = HttpPut
+      of "DELETE": request.reqMethod = HttpDelete
+      of "PATCH": request.reqMethod = HttpPatch
+      of "OPTIONS": request.reqMethod = HttpOptions
+      of "CONNECT": request.reqMethod = HttpConnect
+      of "TRACE": request.reqMethod = HttpTrace
+      else:
         asyncCheck request.respondError(Http400)
         return true # Retry processing of request
     of 1:
@@ -225,7 +219,7 @@ proc processRequest(
     i = 0
     lineFut.mget.setLen(0)
     lineFut.clean()
-    await client.recvLineInto(lineFut, maxLength=maxLine)
+    await client.recvLineInto(lineFut, maxLength = maxLine)
 
     if lineFut.mget == "":
       client.close(); return false
@@ -260,7 +254,7 @@ proc processRequest(
       if contentLength > server.maxBody:
         await request.respondError(Http413)
         return false
-
+        
       # begin: commented on by hdias 2019-03-02
       # request.body = await client.recv(contentLength)
       # if request.body.len != contentLength:
@@ -271,10 +265,11 @@ proc processRequest(
       # begin inserted by hdias 2019-03-02
       request.content_length = contentLength
       # end
-      
+
   elif request.reqMethod == HttpPost:
     await request.respond(Http411, "Content-Length required.")
     return true
+
 
   # Call the user's callback.
   # echo "Result after: " & $remainder # inserted by hdias 2019-03-02
@@ -322,7 +317,7 @@ proc processClient(server: AsyncHttpServer, client: AsyncSocket, address: string
     if not retry: break
 
 proc serve*(server: AsyncHttpServer, port: Port,
-            callback: proc (request: Request): Future[void] {.closure,gcsafe.},
+            callback: proc (request: Request): Future[void] {.closure, gcsafe.},
             address = "") {.async.} =
   ## Starts the process of listening for incoming HTTP connections on the
   ## specified address and port.
