@@ -1,6 +1,6 @@
 # Package
 
-version       = "0.0.1"
+version       = "0.0.2"
 author        = "Henrique Dias"
 description   = "Stator - Exprimental HTTP Server"
 license       = "MIT"
@@ -9,4 +9,4 @@ skipDirs = @["examples", "tests"]
 
 # Dependencies
 
-requires "nim >= 0.19.4"
+requires "nim >= 1.0.4"
