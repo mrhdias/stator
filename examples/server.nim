@@ -242,4 +242,7 @@ $1
       removeDir(my_static_dir)
 
 var server = newAsyncHttpServer(maxBody=167772160)
+
+echo "Server running in http://0.0.0.0:8080."
+
 waitFor server.serve(Port(8080), handler)
