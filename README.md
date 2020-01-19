@@ -108,7 +108,7 @@ $1
 """
 
   if req.reqMethod == HttpPost:
-    let httpbody = await newAsyncBodyParser(req)
+    let httpbody = await newAsyncHttpBodyParser(req)
     var html = "Data:<br /><ul>"
     for k,v in httpbody.formdata:
       html.add("<li>$1 => $2</li>" % [k, v])
@@ -157,7 +157,7 @@ $1
       let uploadDir = getTempDir() / $genOid()
 
       # the temporary system directory is the default 
-      let httpbody = await newAsyncBodyParser(req, uploadDirectory=uploadDir)
+      let httpbody = await newAsyncHttpBodyParser(req, uploadDirectory=uploadDir)
 
       var html = "Data:<br />"
       if httpbody.formdata.len > 0:
@@ -266,7 +266,7 @@ function test_json() {
 
   if req.reqMethod == HttpPost:
     if req.headers["Content-type"] == "application/json":
-      let httpbody = await newAsyncBodyParser(req)
+      let httpbody = await newAsyncHttpBodyParser(req)
       var msg: JsonNode
       if httpbody.data.len > 0:
         let jsonNode = parseJson(httpbody.data)
