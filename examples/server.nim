@@ -231,7 +231,7 @@ $1
       let my_static_dir = getTempDir() / "static"
       discard existsOrCreateDir(my_static_dir)
       let svgfilename = my_static_dir / "test.svg"
-      var file = openAsync(svgfilename, fmWrite)
+      let file = openAsync(svgfilename, fmWrite)
       await file.write(svgimg)
       file.close()
 
@@ -242,4 +242,7 @@ $1
       removeDir(my_static_dir)
 
 var server = newAsyncHttpServer(maxBody=167772160)
+
+echo "Server running in http://0.0.0.0:8080."
+
 waitFor server.serve(Port(8080), handler)
