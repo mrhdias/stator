@@ -65,7 +65,7 @@ function test_json() {
 
   if req.reqMethod == HttpPost:
     if req.headers["Content-type"] == "application/json":
-      let httpbody = await newAsyncBodyParser(req)
+      let httpbody = await newAsyncHttpBodyParser(req)
       var msg: JsonNode
       if httpbody.data.len > 0:
         let jsonNode = parseJson(httpbody.data)
