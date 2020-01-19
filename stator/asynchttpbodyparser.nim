@@ -199,7 +199,12 @@ proc processRequestMultipartBody(self: AsyncHttpBodyParser, req: Request): Futur
     var output: AsyncFile
 
     while remainder > 0:
-      let data = await req.client.recv(if remainder < chunkSize: remainder else: chunkSize)
+      let read_size = if remainder < chunkSize: remainder.int else: chunkSize
+      let data = await req.client.recv(read_size)
+      if data.len != read_size:
+        await req.complete(false)
+        raise newException(HttpBodyParserError, "An error occurred while reading the request body.")
+
       remainder -= data.len
       for i in 0 .. data.len-1:
 
