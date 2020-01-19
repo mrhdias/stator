@@ -1,7 +1,7 @@
 #
 #
 #       Nim's Asynchronous Http Body Parser
-#        (c) Copyright 2019 Henrique Dias
+#        (c) Copyright 2020 Henrique Dias
 #
 #    See the file "copying.txt", included in this
 #    distribution, for details about the copyright.
@@ -11,7 +11,6 @@ import os, tables, strutils
 export asyncnet, tables
 import httpcore
 
-
 type
   FileAttributes* = object
     filename*: string
@@ -19,9 +18,9 @@ type
     filesize*: BiggestInt
 
 type
-  AsyncHttpBodyParser* = object
-    formdata*: Table[string, string]
-    formfiles*: Table[string, FileAttributes]
+  AsyncHttpBodyParser* = ref object of RootObj
+    formdata*: TableRef[string, string]
+    formfiles*: TableRef[string, FileAttributes]
     data*: string
     multipart*: bool
 
@@ -157,7 +156,8 @@ proc processHeader(raw_headers: seq[string]): Future[(string, Table[string, stri
 # https://www.w3.org/Protocols/rfc1341/7_2_Multipart.html
 # https://httpstatuses.com/400
 #
-proc processRequestMultipartBody(req: Request, uploadDirectory: string): Future[AsyncHttpBodyParser] {.async.} =
+
+proc processRequestMultipartBody(self: AsyncHttpBodyParser, req: Request, uploadDirectory: string): Future[void] {.async.} =
   # echo ">> Begin Process Multipart Body"
 
   let boundary = "--$1" % req.headers["Content-type"][30 .. high(req.headers["Content-type"])]
@@ -166,11 +166,9 @@ proc processRequestMultipartBody(req: Request, uploadDirectory: string): Future[
     await req.complete(false)
     raise newException(HttpBodyParserError, "Multipart/data malformed request syntax")
 
-
-  var httpbody: AsyncHttpBodyParser
-  httpbody.formdata = initTable[string, string]()
-  httpbody.formfiles = initTable[string, FileAttributes]()
-  httpbody.multipart = true
+  self.formdata = newTable[string, string]()
+  self.formfiles = newTable[string, FileAttributes]()
+  self.multipart = true
 
   proc initFileAttributes(form: Table[string, string]): FileAttributes =
     var attributes: FileAttributes
@@ -206,12 +204,12 @@ proc processRequestMultipartBody(req: Request, uploadDirectory: string): Future[
 
         if read_content:
           # echo data[0]
-          
+
           # echo ">> Find a Boundary: " & data[i]
           if read_boundary and data[i] == boundary[count_boundary_chars]:
             if count_boundary_chars == high(boundary):
               # echo ">> Boundary found"
-              
+
               # begin the suffix of boundary before "\c\L--boundary"
               if bag.len > 1:
                 bag.removeSuffix("\c\L")
@@ -226,15 +224,15 @@ proc processRequestMultipartBody(req: Request, uploadDirectory: string): Future[
 
               if bag.len > 0:
                 # echo ">> Empty bag: " & bag & " => " & formname
-                if httpbody.formfiles.hasKey(formname) and httpbody.formfiles[formname].filename.len > 0:
+                if self.formfiles.hasKey(formname) and self.formfiles[formname].filename.len > 0:
                   await output.write(bag)
-                elif httpbody.formdata.hasKey(formname):
-                  httpbody.formdata[formname].add(bag)
+                elif self.formdata.hasKey(formname):
+                  self.formdata[formname].add(bag)
                 bag = ""
 
-              if httpbody.formfiles.hasKey(formname) and httpbody.formfiles[formname].filename.len > 0:
+              if self.formfiles.hasKey(formname) and self.formfiles[formname].filename.len > 0:
                 output.close()
-                httpbody.formfiles[formname].filesize = getFileSize(uploadDirectory / httpbody.formfiles[formname].filename)
+                self.formfiles[formname].filesize = getFileSize(uploadDirectory / self.formfiles[formname].filename)
 
               #--- end if there are still characters in the bag ---
 
@@ -249,27 +247,25 @@ proc processRequestMultipartBody(req: Request, uploadDirectory: string): Future[
             count_boundary_chars += 1
             continue
 
-        
           if buffer.len > 0:
             bag.add(buffer)
             buffer = ""
 
           # if not match teh boundary char add stream char to the bag
           bag.add(data[i])
-          
+
           # --- begin empty bag if full ---
           if bag.len > chunkSize:
             # echo ">> Empty bag: " & bag
-            if httpbody.formfiles.hasKey(formname) and httpbody.formfiles[formname].filename.len > 0:
+            if self.formfiles.hasKey(formname) and self.formfiles[formname].filename.len > 0:
               await output.write(bag)
-            elif httpbody.formdata.hasKey(formname):
-              httpbody.formdata[formname].add(bag)
+            elif self.formdata.hasKey(formname):
+              self.formdata[formname].add(bag)
             bag = ""
           # --- end empty bag if full ---
 
           count_boundary_chars = 0
           continue
-
 
         if read_header:
           if data[i] == '\c': continue
@@ -288,22 +284,22 @@ proc processRequestMultipartBody(req: Request, uploadDirectory: string): Future[
                 # echo ">> Form Name: " & formname
                 #---begin check the type if is a filename or a data value
                 if form.hasKey("filename"):
-                  var fileattr = initFileAttributes(form)
-                  httpbody.formfiles.add(name, fileattr)
+                  let fileattr = initFileAttributes(form)
+                  self.formfiles.add(name, fileattr)
                   # test if the temporary directory exists
                   discard existsOrCreateDir(uploadDirectory)
 
                   if form.hasKey("content-type"):
-                    httpbody.formfiles[formname].content_type = form["content-type"]
+                    self.formfiles[formname].content_type = form["content-type"]
 
                   # test the filename
                   var filename = form["filename"]
                   if (let fullpath = testFilename(uploadDirectory, filename); fullpath.len) > 0:
-                    httpbody.formfiles[formname].filename = filename
+                    self.formfiles[formname].filename = filename
                     output = openAsync(fullpath, fmWrite)
 
                 else:
-                  httpbody.formdata.add(name, form["data"])
+                  self.formdata.add(name, form["data"])
                 raw_headers.setLen(0)
                 #-- end check the type if is a filename or a data value
 
@@ -318,7 +314,6 @@ proc processRequestMultipartBody(req: Request, uploadDirectory: string): Future[
 
           buffer.add(data[i])
           continue
-
 
         if find_headers:
           # echo ">> Find the tail of Boundary: " & buffer & " = " & buffer[buffer.len - 2 .. buffer.len - 1]
@@ -338,21 +333,17 @@ proc processRequestMultipartBody(req: Request, uploadDirectory: string): Future[
 
         await req.complete(false)
         raise newException(HttpBodyParserError, "Multipart/data malformed request syntax")
-
  
   # echo ">> Multipart Body Request Remainder: " & $remainder
 
   await req.complete(if remainder == 0: true else: false)
 
-  return httpbody
 
+proc processRequestBody(self: AsyncHttpBodyParser, req: Request): Future[void] {.async.} =
+  # echo ">> Begin Process Request Body"
 
-proc processRequestBody(req: Request): Future[AsyncHttpBodyParser] {.async.} =
-  # echo ">> Begin Process Body"
-
-  var httpbody: AsyncHttpBodyParser
-  httpbody.formdata = initTable[string, string]()
-  httpbody.multipart = false
+  self.formdata = newTable[string, string]()
+  self.multipart = false
 
   var remainder = req.content_length
   # echo ">> Remainder: " & $remainder
@@ -368,7 +359,7 @@ proc processRequestBody(req: Request): Future[AsyncHttpBodyParser] {.async.} =
       # echo data[i]
       if name.len > 0 and data[i] == '&':
         # echo ">> End of the value found"
-        httpbody.formdata.add(name, buffer)
+        self.formdata.add(name, buffer)
         name = ""
         buffer = ""
         continue
@@ -402,29 +393,27 @@ proc processRequestBody(req: Request): Future[AsyncHttpBodyParser] {.async.} =
       buffer.add(data[i])
 
   if name.len > 0:
-    httpbody.formdata.add(name, buffer)
+    self.formdata.add(name, buffer)
 
   # echo "Request Body Remainder: " & $remainder
 
   await req.complete(if remainder == 0: true else: false)
 
-  return httpbody
 
+proc newAsyncHttpBodyParser*(req: Request, uploadDirectory: string = getTempDir()): Future[AsyncHttpBodyParser] {.async.} =
 
-
-proc newAsyncBodyParser*(req: Request, uploadDirectory: string = getTempDir()): Future[AsyncHttpBodyParser] {.async.} =
-
+  let self = AsyncHttpBodyParser()
   if req.headers.hasKey("Content-type"):
     if req.headers["Content-type"].len > 32 and req.headers["Content-type"][0 .. 29] == "multipart/form-data; boundary=":
-      let httpbody = await processRequestMultipartBody(req, uploadDirectory)
-      return httpbody
+      await self.processRequestMultipartBody(req, uploadDirectory)
+      return self
 
     if req.headers["Content-type"] == "application/x-www-form-urlencoded":
-      let httpbody = await processRequestBody(req)
-      return httpbody
+      await self.processRequestBody(req)
+      return self
 
-  var httpbody: AsyncHttpBodyParser
-  httpbody.data = await req.client.recv(req.content_length)
-  let remainder = req.content_length - httpbody.data.len
+  self.data = await req.client.recv(req.content_length)
+  let remainder = req.content_length - self.data.len
   await req.complete(if remainder == 0: true else: false)
-  return httpbody
+
+  return self
