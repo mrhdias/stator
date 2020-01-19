@@ -1,12 +1,12 @@
 #
-# Copyright (C) 2019 Henrique Dias
+# Copyright (C) 2020 Henrique Dias
 # MIT License - Look at LICENSE for details.
 #
 import macros
 import re
 import asyncdispatch
 from strutils import `%`
-import stator/[routes, asynchttpserver, asynchttpbodyparser, asynchttpserver, asynchttpfileserver, basicauth]
+import stator/[routes, asynchttpserver, asynchttpbodyparser, asynchttpserver, asynchttpsessions, asynchttpfileserver, basicauth]
 
 export asyncdispatch
 export re
@@ -14,6 +14,7 @@ export routes
 export asynchttpserver
 export asynchttpbodyparser
 export asynchttpserver
+export asynchttpsessions
 export asynchttpfileserver
 export basicauth
 
