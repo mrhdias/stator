@@ -23,6 +23,7 @@ type
     formfiles*: TableRef[string, FileAttributes]
     data*: string
     multipart*: bool
+    upload_directory: string
 
   HttpBodyParserError* = object of Exception
 
@@ -157,7 +158,7 @@ proc processHeader(raw_headers: seq[string]): Future[(string, Table[string, stri
 # https://httpstatuses.com/400
 #
 
-proc processRequestMultipartBody(self: AsyncHttpBodyParser, req: Request, uploadDirectory: string): Future[void] {.async.} =
+proc processRequestMultipartBody(self: AsyncHttpBodyParser, req: Request): Future[void] {.async.} =
   # echo ">> Begin Process Multipart Body"
 
   let boundary = "--$1" % req.headers["Content-type"][30 .. high(req.headers["Content-type"])]
@@ -232,7 +233,7 @@ proc processRequestMultipartBody(self: AsyncHttpBodyParser, req: Request, upload
 
               if self.formfiles.hasKey(formname) and self.formfiles[formname].filename.len > 0:
                 output.close()
-                self.formfiles[formname].filesize = getFileSize(uploadDirectory / self.formfiles[formname].filename)
+                self.formfiles[formname].filesize = getFileSize(self.upload_directory / self.formfiles[formname].filename)
 
               #--- end if there are still characters in the bag ---
 
@@ -287,14 +288,14 @@ proc processRequestMultipartBody(self: AsyncHttpBodyParser, req: Request, upload
                   let fileattr = initFileAttributes(form)
                   self.formfiles.add(name, fileattr)
                   # test if the temporary directory exists
-                  discard existsOrCreateDir(uploadDirectory)
+                  discard existsOrCreateDir(self.upload_directory)
 
                   if form.hasKey("content-type"):
                     self.formfiles[formname].content_type = form["content-type"]
 
                   # test the filename
                   var filename = form["filename"]
-                  if (let fullpath = testFilename(uploadDirectory, filename); fullpath.len) > 0:
+                  if (let fullpath = testFilename(self.upload_directory, filename); fullpath.len) > 0:
                     self.formfiles[formname].filename = filename
                     output = openAsync(fullpath, fmWrite)
 
@@ -399,21 +400,26 @@ proc processRequestBody(self: AsyncHttpBodyParser, req: Request): Future[void] {
 
   await req.complete(if remainder == 0: true else: false)
 
+proc parseBody(self: AsyncHttpBodyParser, req: Request): Future[void] {.async.} =
 
-proc newAsyncHttpBodyParser*(req: Request, uploadDirectory: string = getTempDir()): Future[AsyncHttpBodyParser] {.async.} =
-
-  let self = AsyncHttpBodyParser()
   if req.headers.hasKey("Content-type"):
     if req.headers["Content-type"].len > 32 and req.headers["Content-type"][0 .. 29] == "multipart/form-data; boundary=":
-      await self.processRequestMultipartBody(req, uploadDirectory)
-      return self
+      await self.processRequestMultipartBody(req)
+      return
 
     if req.headers["Content-type"] == "application/x-www-form-urlencoded":
       await self.processRequestBody(req)
-      return self
+      return
 
   self.data = await req.client.recv(req.content_length)
   let remainder = req.content_length - self.data.len
   await req.complete(if remainder == 0: true else: false)
 
-  return self
+  return
+
+proc newAsyncHttpBodyParser*(req: Request, uploadDirectory: string = getTempDir()): Future[AsyncHttpBodyParser] {.async.} =
+  ## Creates a new ``AsyncHttpBodyParser`` instance.
+  new result
+  result.upload_directory = uploadDirectory
+
+  await result.parseBody(req)
