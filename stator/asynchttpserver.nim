@@ -253,6 +253,10 @@ proc processRequest(
     else:
       if contentLength > server.maxBody:
         await request.respondError(Http413)
+        # begin inserted by hdias 2020-01-19
+        # The connection has to be closed, if not, it blocks.
+        request.client.close()
+        # end
         return false
         
       # begin: commented on by hdias 2019-03-02
