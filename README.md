@@ -153,9 +153,8 @@ $1
 """
 
   if req.reqMethod == HttpPost:
+    let uploadDir = getTempDir() / $genOid()
     try:
-      let uploadDir = getTempDir() / $genOid()
-
       # the temporary system directory is the default 
       let httpbody = await newAsyncHttpBodyParser(req, uploadDirectory=uploadDir)
 
@@ -187,7 +186,9 @@ $1
       await req.respond(Http200, htmlpage % html)
 
     except HttpBodyParserError:
-      await req.respond(Http422, "Multipart/data malformed request syntax")
+      removeDir(uploadDir)
+      let msg = getCurrentExceptionMsg()
+      await req.respond(Http422, msg)
 
   else:
     await req.respond(Http200, htmlpage % "No data!")
