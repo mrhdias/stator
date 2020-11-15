@@ -2,7 +2,7 @@
 
 version       = "0.0.2"
 author        = "Henrique Dias"
-description   = "Stator - Exprimental HTTP Server"
+description   = "Stator - Web Application Framework"
 license       = "MIT"
 
 skipDirs = @["examples", "tests"]
