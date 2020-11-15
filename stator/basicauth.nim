@@ -1,6 +1,6 @@
 #
 #
-#      Stator Async HTTP Basic Authentication
+#  Stator Async HTTP Server Basic Authentication
 #        (c) Copyright 2020 Henrique Dias
 #
 #    See the file "copying.txt", included in this
