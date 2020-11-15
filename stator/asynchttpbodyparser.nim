@@ -1,6 +1,6 @@
 
 #
-#         Stator Async HTTP Body Parser
+#      Stator Async HTTP Server Body Parser
 #        (c) Copyright 2020 Henrique Dias
 #
 #    See the file "copying.txt", included in this
