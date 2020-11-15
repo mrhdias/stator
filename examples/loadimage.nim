@@ -1,9 +1,9 @@
 #
-# nimble install https://github.com/mrhdias/StatorHTTPServer
+# nimble install https://github.com/mrhdias/Stator
 # nim c -d:ssl -r loadimage.nim
 # http://example:8080/
 #
-import ../stator
+import stator
 import httpclient
 import asyncfile
 import os
