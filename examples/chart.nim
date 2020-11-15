@@ -1,5 +1,5 @@
 #
-# nimble install https://github.com/mrhdias/Stator
+# nimble install https://github.com/mrhdias/stator
 # nim c -r chart.nim
 # http://example:8080/
 #
