@@ -1,5 +1,5 @@
 #
-#           Stator Async HTTP Server
+#        Stator Web Application Framework
 #        (c) Copyright 2020 Henrique Dias
 #
 #    See the file "copying.txt", included in this
