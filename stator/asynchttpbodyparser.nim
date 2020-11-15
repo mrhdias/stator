@@ -1,15 +1,21 @@
+
 #
-#
-#       Nim's Asynchronous Http Body Parser
+#         Stator Async HTTP Body Parser
 #        (c) Copyright 2020 Henrique Dias
 #
 #    See the file "copying.txt", included in this
 #    distribution, for details about the copyright.
 #
-import asyncnet, asyncdispatch, asynchttpserver, asyncfile
-import os, tables, strutils
-export asyncnet, tables
+import asyncdispatch, asyncnet, asyncfile
 import httpcore
+import os
+from strutils import `%`, isDigit, parseInt, intToStr,
+  rsplit, split, startsWith, removeSuffix, fromHex
+import formtable
+import strtabs
+import oids
+
+export formtable
 
 type
   FileAttributes* = object
@@ -17,414 +23,419 @@ type
     content_type*: string
     filesize*: BiggestInt
 
-type
-  AsyncHttpBodyParser* = ref object of RootObj
-    formdata*: TableRef[string, string]
-    formfiles*: TableRef[string, FileAttributes]
+  BodyData* = ref object
+    formdata*: FormTableRef[string, string]
+    formfiles*: FormTableRef[string, FileAttributes]
     data*: string
     multipart*: bool
-    upload_directory: string
+    workingDir*: string
 
-  HttpBodyParserError* = object of Exception
+type
+  AsyncHttpBodyParser* = ref object of RootObj
+    client: AsyncSocket
+    headers: HttpHeaders
+    tmpUploadDir: string
+    chunkSize: int
+
+const debug = false
 
 
-const chunkSize = 8*1024
-# const debug: bool = true
+proc newBodyData(): BodyData =
+  new result
+  result.formdata = newFormTable[string, string]()
+  result.formfiles = newFormTable[string, FileAttributes]()
+  result.multipart = false
+  result.data = ""
 
 
-proc splitInTwo(s: string, c: char): (string, string) =
-  var p = find(s, c)
-  if not (p > 0 and p < high(s)):
-    return ("", "")
-
-  let head = s[0 .. p-1]
-  p += 1; while s[p] == ' ': p += 1
-  return (head, s[p .. high(s)])
+func `$`*(bd: BodyData): string {.inline.} =
+  $(
+    multipart: bd.multipart,
+    formdata: bd.formdata,
+    formfiles: bd.formfiles,
+    data: bd.data,
+    workingDir: bd.workingDir
+  )
 
 
 proc incCounterInFilename(filename: string): string =
-  if filename.len == 0: return ""
+  if filename == "":
+    return ""
 
   var p = filename.high
-  if p > 0 and filename[p] == ')':
+  if p > 0 and filename[^1] == ')':
     var strnumber = ""
     while isDigit(filename[p-1]):
       strnumber = filename[p-1] & strnumber
       p -= 1
 
-    if p > 1 and filename[p-1] == '(' and filename[p-2] == ' ':
-      let number: int = parseInt(strnumber)
-      if number > 0:
-        return "$1 ($2)" % [filename[0 .. p - 3], intToStr(number + 1)]
+    if p > 1 and
+      filename[p-1] == '(' and
+      filename[p-2] == ' ' and
+      (let number = parseInt(strnumber); number) > 0:
+      return "$1 ($2)" % [filename[0 .. p - 3], intToStr(number + 1)]
 
   return "$1 (1)" % filename
 
 
+proc uniqueFilename(workingDir, formFilename: string): string =
 
-proc testFilename(tmpdir: string, filename: var string): string =
-  if filename.len == 0:
-    filename = "unknown"
-
-  var path = ""
-  # var count = 0;
+  var filename = formFilename
   while true:
-    path = tmpdir / filename
-    if not fileExists(path):
-      return path
+    let fullpath = workingDir / filename
+    if debug: echo "Fullpath: ", fullpath
+
+    if not fileExists(fullpath):
+      return filename
 
     let filenameparts = filename.rsplit(".", maxsplit=1)
-    filename = if filenameparts.len == 2: "$1.$2" % [incCounterInFilename(filenameparts[0]), filenameparts[1]] else: incCounterInFilename(filename)
-
-  return path
-
+    let newfilename = incCounterInFilename(filenameparts[0])
+    filename = if filenameparts.len == 2: "$1.$2" % [newfilename, filenameparts[1]] else: "$1" % newfilename
 
 
-proc splitContentDisposition(s: string): (string, seq[string]) =
-  var parts = newSeq[string]()
+proc parseFormData(formStr: string): StringTableRef =
+  var
+    buffer = ""
+    key = ""
+  var isFormData = false
 
-  var first_parameter = ""
-  var buff = ""
-  var p = 0
-  while p < s.len:
-    if s[p] == ';':
-      if p > 0 and s[p-1] == '"':
-        parts.add(buff)
-        buff = ""
+  result = newStringTable()
 
-      if first_parameter.len == 0:
-        if buff.len == 0: break
-        first_parameter = buff
-        buff = ""
+  for c in formStr:
+    if c == ' ' and buffer == "":
+      continue
 
-      if buff == "":
-        p += 1; while p < s.len and s[p] == ' ': p += 1
-        continue
-    buff.add(s[p])
-    p += 1
+    if c == ';':
+      let value = if buffer[0] == '"' and buffer[^1] == '"': buffer[1 .. ^2] else: buffer
+      if key == "":
+        if value == "form-data":
+          isFormData = true
+      else:
+        result[key] = value
+      key = ""
+      buffer = ""
+      continue
 
-  if buff.len > 0 and buff[high(buff)] == '"':
-    parts.add(buff)
+    if c == '=':
+      key = buffer
+      buffer = ""
+      continue
 
-  return (first_parameter, parts)
+    buffer.add(c)
+
+  let value = if buffer[0] == '"': buffer[1 .. ^2] else: buffer
+  if key == "":
+    if value == "form-data":
+      isFormData = true
+  else:
+    result[key] = value
+
+  if not isFormData:
+    raise newException(ValueError, "Multipart/data malformed request syntax")
 
 
+proc assignToFile(
+  formfiles: FormTableRef[string, FileAttributes],
+  currentFormData,
+  contentType,
+  formFilename,
+  workingDir: string): AsyncFile =
 
-#
-# https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Disposition
-#
-proc processHeader(raw_headers: seq[string]): Future[(string, Table[string, string])] {.async.} =
+  let filename = uniqueFilename(workingDir, formFilename)
+
+  var fileattr: FileAttributes
+  fileattr.filename = filename
+  fileattr.content_type = contentType
+  fileattr.filesize = 0
+
+  if currentFormData notin formfiles:
+    formfiles[currentFormData] = newSeq[FileAttributes]()
+  formfiles[currentFormData] = fileattr
+
+  discard existsOrCreateDir(workingDir)
+
+  let fullpath = workingDir / filename
+  if debug: echo "Fullpath: ", fullpath
+
+  result = openAsync(fullpath, fmWrite)
+
+
+proc getBoundary(contentType: string): string =
+  let parts = contentType.split(';')
+  if parts.len == 2 and parts[0] == "multipart/form-data":
+    let idx = if parts[1][0] == ' ': 1 else: 0
+    if parts[1][idx .. ^1].startsWith("boundary="):
+      let boundary = parts[1][(idx + 9) .. ^1]
+      return "--$1" % boundary
+  return ""
+
+
+proc multipartFormData(self: AsyncHttpBodyParser, bd: BodyData) {.async.} =
+  let boundary = getBoundary(self.headers["content-type"])
+  if debug: echo "Boundary: ", boundary
+  if boundary == "":
+    raise newException(ValueError, "Multipart/data malformed request syntax")
+
+  type
+    parseSection = enum
+      parseContent = 1, parseHeaders = 2, findTerminus = 3
+  # Parse Section
+  # 1: Read content
+  # 2: Read headers
+  # 3: Find Terminus - Search for the string "\c\L" to read the headers or
+  #    Search for the string "--" which is after the end of boundary to finish.
+  var section = ord(parseContent)
+  
+  var countBoundaryChars = 0
 
   var
-    formname = ""
-    filename = ""
-    content_type = ""
+    buffer = ""
+    bag = ""
 
-  for raw_header in raw_headers:
-    # echo ">> Raw Header: " & raw_header
-    let (h_head, h_tail) = splitInTwo(raw_header, ':')
-    if h_head == "Content-Disposition":
-      let (first_parameter, content_disposition_parts) = splitContentDisposition(h_tail)
-      if first_parameter != "form-data": continue
-      for content_disposition_part in content_disposition_parts:
-        let pair = content_disposition_part.split("=", maxsplit=1)
-        if pair.len == 2:
-          let value = if pair[1][0] == '"' and pair[1][high(pair[1])] == '"': pair[1][1 .. pair[1].len-2] else: pair[1]
-          # echo ">> Pair: " & pair[0] & " = " & value
-          if value.len > 0:
-            if pair[0] == "name":
-              formname = value
-          if pair[0] == "filename":
-            filename = value
-
-    elif h_head == "Content-Type":
-      # echo ">> Raw Header: " & h_head & " = " & h_tail
-      content_type = h_tail
-
-  var formdata = initTable[string, string]()
-  if filename.len > 0 or content_type.len > 0:
-    formdata.add("filename", filename)
-    formdata.add("content-type", content_type)
-  else:
-    formdata.add("data", "")
-
-  # echo ">> Form Data: " & $formdata
-
-  return (formname, formdata)
-
-#
-# https://tools.ietf.org/html/rfc7578
-# https://tools.ietf.org/html/rfc2046#section-5.1
-# https://www.w3.org/Protocols/rfc1341/7_2_Multipart.html
-# https://httpstatuses.com/400
-#
-
-proc processRequestMultipartBody(self: AsyncHttpBodyParser, req: Request): Future[void] {.async.} =
-  # echo ">> Begin Process Multipart Body"
-
-  let boundary = "--$1" % req.headers["Content-type"][30 .. high(req.headers["Content-type"])]
-  # echo ">> Boundary: " & boundary
-  if boundary.len < 3 or boundary.len > 72:
-    await req.complete(false)
-    raise newException(HttpBodyParserError, "Multipart/data malformed request syntax")
-
-  self.formdata = newTable[string, string]()
-  self.formfiles = newTable[string, FileAttributes]()
-  self.multipart = true
-
-  proc initFileAttributes(form: Table[string, string]): FileAttributes =
-    var attributes: FileAttributes
-    attributes.filename = if form.hasKey("filename"): form["filename"] else: "unknown"
-    attributes.content_type = if form.hasKey("content_type"): form["content_type"] else: ""
-    attributes.filesize = 0
-
-    return attributes
-
-  var remainder = req.content_length
-  block parser:
-
-    var count_boundary_chars = 0
-
-    var
-      read_boundary = true
-      find_headers = false
-      read_header = false
-      read_content = true
-
-    var
+  var
+    pc = '\0'
+    tc = '\0'
+  
+  var headers = newHttpHeaders()
+  var currentFormData = ""
+  var output: AsyncFile
+  
+  template flushData() {.dirty.} =
+    # flush data
+    if bd.formfiles.hasKey(currentFormData):
+      await output.write(bag)
       bag = ""
-      buffer = ""
+    elif bd.formdata.hasKey(currentFormData):
+      bd.formdata[currentFormData] = bag # add values to sequence
+      bag = ""
 
-    var raw_headers = newSeq[string]()
-    var formname = ""
-    var output: AsyncFile
 
-    while remainder > 0:
-      let read_size = if remainder < chunkSize: remainder.int else: chunkSize
-      let data = await req.client.recv(read_size)
-      if data.len != read_size:
-        await req.complete(false)
-        raise newException(HttpBodyParserError, "An error occurred while reading the request body.")
+  var remainder = self.headers["Content-Length"].parseInt
+  while remainder > 0:
+    let readSize = min(remainder, self.chunkSize)
+    let data = await self.client.recv(readSize)
+    remainder -= readSize
 
-      remainder -= data.len
-      for i in 0 .. data.len-1:
+    for c in data:
+      pc = tc
+      tc = c
 
-        if read_content:
-          # echo data[0]
+      # echo "char: ", c
+      if section == ord(parseContent):
+ 
+        if c == boundary[countBoundaryChars]:
+          if countBoundaryChars == high(boundary):
+            if debug: echo "Boundary Found: ", boundary
+            # echo "dubug: bag: >", bag, "< baglen: ", bag.len, " lastchar: >", c, "< buffer: >", buffer, "<"
 
-          # echo ">> Find a Boundary: " & data[i]
-          if read_boundary and data[i] == boundary[count_boundary_chars]:
-            if count_boundary_chars == high(boundary):
-              # echo ">> Boundary found"
+            buffer.add(c)
 
-              # begin the suffix of boundary before "\c\L--boundary"
+            if ((let diff = buffer.len - boundary.len); diff) > 0:
+              bag.add(buffer[0 .. diff - 1])
+
+            # Empty the bag if it has data.
+            if bag.len > 0:
               if bag.len > 1:
                 bag.removeSuffix("\c\L")
 
-              buffer.add(data[i])
+              flushData()
 
-              #--- begin if there are still characters in the bag ---
-              # echo "Check the bag: " & buffer & " = " & boundary
-              if ((let diff = buffer.len - boundary.len); diff) > 0:
-                # echo ">> Diferrence: " & $diff
-                bag.add(buffer[0 .. diff - 1])
+            if bd.formfiles.hasKey(currentFormData):
+              output.close()
+              # looking inside the sequence files for the last insertion
+              bd.formfiles[currentFormData, ^1].filesize = getFileSize(bd.workingDir / bd.formfiles[currentFormData, ^1].filename)
 
-              if bag.len > 0:
-                # echo ">> Empty bag: " & bag & " => " & formname
-                if self.formfiles.hasKey(formname) and self.formfiles[formname].filename.len > 0:
-                  await output.write(bag)
-                elif self.formdata.hasKey(formname):
-                  self.formdata[formname].add(bag)
-                bag = ""
-
-              if self.formfiles.hasKey(formname) and self.formfiles[formname].filename.len > 0:
-                output.close()
-                self.formfiles[formname].filesize = getFileSize(self.upload_directory / self.formfiles[formname].filename)
-
-              #--- end if there are still characters in the bag ---
-
-              find_headers = true
-              read_content = false
-              read_header = false
-              count_boundary_chars = 0
-              continue
-
-            # echo "On the right path to find the Boundary: " & data[i] & " = " & boundary[count_boundary_chars]
-            buffer.add(data[i])
-            count_boundary_chars += 1
+            # Next move: goto 3 and 4
+            # Find the beginning of the headers or the boundary ending string "--" to finish.
+            section = ord(findTerminus)
+            countBoundaryChars = 0
             continue
 
-          if buffer.len > 0:
-            bag.add(buffer)
-            buffer = ""
-
-          # if not match teh boundary char add stream char to the bag
-          bag.add(data[i])
-
-          # --- begin empty bag if full ---
-          if bag.len > chunkSize:
-            # echo ">> Empty bag: " & bag
-            if self.formfiles.hasKey(formname) and self.formfiles[formname].filename.len > 0:
-              await output.write(bag)
-            elif self.formdata.hasKey(formname):
-              self.formdata[formname].add(bag)
-            bag = ""
-          # --- end empty bag if full ---
-
-          count_boundary_chars = 0
+          buffer.add(c)
+          countBoundaryChars += 1
           continue
 
-        if read_header:
-          if data[i] == '\c': continue
-          if data[i] == '\L':
-            if buffer.len == 0:
-              read_header = false
-              read_content = true
-              # echo ">> Process headers"
-              #--- begin process headers ---
+        if buffer.len > 0:
+          bag.add(buffer)
+          buffer = ""
 
-              if raw_headers.len > 0:
-                # echo ">> Raw Headers: " & $raw_headers
-                let (name, form) = await processHeader(raw_headers)
+        bag.add(c)
+ 
+        # Empty the bag if it is full
+        if bag.len > self.chunkSize:
+          flushData()
 
-                formname = name
-                # echo ">> Form Name: " & formname
-                #---begin check the type if is a filename or a data value
+        countBoundaryChars = 0
+        continue
+
+      #
+      # 2. Read the headers until the "\c\L\c\L" string is found
+      #
+      if section == ord(parseHeaders):
+
+        if c == '\c':
+          continue
+
+        if pc == '\c' and c == '\L':
+          if buffer.len == 0: # if it is a double newline "\c\L\c\L" separator
+            section = ord(parseContent)
+            # Next move: goto 1
+            # Read the contents
+
+            if headers.len > 0:
+              if debug: echo "Headers: ", $headers
+              if headers.hasKey("Content-Disposition"):
+                let form = parseFormData(headers["Content-Disposition"])
+                currentFormData = form["name"]
+
                 if form.hasKey("filename"):
-                  let fileattr = initFileAttributes(form)
-                  self.formfiles.add(name, fileattr)
-                  # test if the temporary directory exists
-                  discard existsOrCreateDir(self.upload_directory)
-
-                  if form.hasKey("content-type"):
-                    self.formfiles[formname].content_type = form["content-type"]
-
-                  # test the filename
-                  var filename = form["filename"]
-                  if (let fullpath = testFilename(self.upload_directory, filename); fullpath.len) > 0:
-                    self.formfiles[formname].filename = filename
-                    output = openAsync(fullpath, fmWrite)
+                  # file
+                  if debug: echo "File: ", $form
+                  
+                  output = bd.formfiles.assignToFile(
+                    currentFormData,
+                    if headers.hasKey("Content-Type"): $headers["Content-Type"] else: "",
+                    if form.hasKey("filename") and form["filename"] != "": form["filename"] else: "unknown",
+                    bd.workingDir
+                  )
 
                 else:
-                  self.formdata.add(name, form["data"])
-                raw_headers.setLen(0)
-                #-- end check the type if is a filename or a data value
+                  # data
+                  if debug: echo "Data: ", $form
+                  # check if form["data"] is always empty
+                  if currentFormData notin bd.formdata:
+                    bd.formdata[currentFormData] = newSeq[string]()
 
-              #--- end process headers ---
+              headers.clear()
               continue
 
-            # echo ">> Header Line: " & buffer
-            raw_headers.add(buffer)
-            buffer = ""
-            bag = ""
-            continue
+          let (key, value) = parseHeader(buffer)
+          headers[key] = value
 
-          buffer.add(data[i])
+          buffer = ""
+          bag = ""
           continue
 
-        if find_headers:
-          # echo ">> Find the tail of Boundary: " & buffer & " = " & buffer[buffer.len - 2 .. buffer.len - 1]
-          if buffer[high(buffer) - 1 .. high(buffer)] == "--":
-            # echo ">> Tail of Boundary found"
-            buffer = ""
-            break parser
+        buffer.add(c)
+        continue
 
-          if data[i] == '-':
-            buffer.add(data[i])
-            continue
-          if data[i] == '\c': continue
-          if data[i] == '\L':
-            read_header = true
-            buffer = ""
-            continue
+      #
+      # 3. Search for the string "--" which is after the end of boundary to finish.
+      #
+      if pc == '-' and c == '-':
+        # buffer = "" # xxxxxxxx necessary?
+        break
 
-        await req.complete(false)
-        raise newException(HttpBodyParserError, "Multipart/data malformed request syntax")
- 
-  # echo ">> Multipart Body Request Remainder: " & $remainder
+      #
+      # 4. Search for the string "\c\L" to read the headers.
+      #
+      if c == '-':
+        buffer.add(c)
+      elif pc == '\c' and c == '\L':
+        section = ord(parseHeaders)
+        buffer = ""
+        # Next move: goto 2
+        # Read headers
 
-  await req.complete(if remainder == 0: true else: false)
+      # echo "Multipart/data malformed request syntax"
 
 
-proc processRequestBody(self: AsyncHttpBodyParser, req: Request): Future[void] {.async.} =
-  # echo ">> Begin Process Request Body"
+proc formUrlencoded(self: AsyncHttpBodyParser, bd: BodyData) {.async.} =
+  var remainder = self.headers["Content-Length"].parseInt
 
-  self.formdata = newTable[string, string]()
-  self.multipart = false
+  var
+    name = ""
+    buffer = ""
+    encodedchar = ""
 
-  var remainder = req.content_length
-  # echo ">> Remainder: " & $remainder
-
-  var buffer = ""
-  var name = ""
-  var encodedchar = ""
   while remainder > 0:
-    let data = await req.client.recv(if remainder < chunkSize: remainder else: chunkSize)
+    let readSize = min(remainder, self.chunkSize)
+    let data = await self.client.recv(readSize)
+    remainder -= readSize
 
-    remainder -= data.len
-    for i in 0 .. high(data):
-      # echo data[i]
-      if name.len > 0 and data[i] == '&':
-        # echo ">> End of the value found"
-        self.formdata.add(name, buffer)
+    for c in data:
+      if name != "" and c == '&':
+        bd.formdata[name] = buffer
         name = ""
         buffer = ""
         continue
 
-      if data[i] == '=':
-        # echo ">> End of the key found"
+      if c == '=':
         name = buffer
         buffer = ""
         continue
 
       if encodedchar.len > 1:
-        encodedchar.add(data[i])
-        if (encodedchar.len - 1) mod 3 == 0: # check the 3 and 3
-          # echo ">> ENCODED CHAR: " & encodedchar
+        encodedchar.add(c)
+        if (encodedchar.len - 1) mod 3 == 0: # checks every 3
           let decodedchar = chr(fromHex[int](encodedchar))
-          # echo ">> DECODED CHAR: " & decodedchar
           if decodedchar != '\x00':
             buffer.add(decodedchar)
             encodedchar = ""
             continue
         continue
 
-      if data[i] == '%':
+      if c == '%':
         encodedchar.add("0x")
         continue
 
-      if data[i] == '+':
+      if c == '+':
         buffer.add(' ')
         continue
 
-      buffer.add(data[i])
+      buffer.add(c)
 
-  if name.len > 0:
-    self.formdata.add(name, buffer)
+  if name != "":
+    bd.formdata[name] = buffer
 
-  # echo "Request Body Remainder: " & $remainder
 
-  await req.complete(if remainder == 0: true else: false)
 
-proc parseBody(self: AsyncHttpBodyParser, req: Request): Future[void] {.async.} =
+proc process*(self: AsyncHttpBodyParser): Future[BodyData] {.async.} =
+  if self.headers["Content-Length"].parseInt == 0:
+    raise newException(ValueError, "Invalid Content-Length.")
 
-  if req.headers.hasKey("Content-type"):
-    if req.headers["Content-type"].len > 32 and req.headers["Content-type"][0 .. 29] == "multipart/form-data; boundary=":
-      await self.processRequestMultipartBody(req)
-      return
+  if not dirExists(self.tmpUploadDir):
+    raise newException(OSError, "Working $1 directory not found!" % self.tmpUploadDir)
 
-    if req.headers["Content-type"] == "application/x-www-form-urlencoded":
-      await self.processRequestBody(req)
-      return
+  if not self.headers.hasKey("Content-Type"):
+    raise newException(ValueError, "No Content-Type.")
 
-  self.data = await req.client.recv(req.content_length)
-  let remainder = req.content_length - self.data.len
-  await req.complete(if remainder == 0: true else: false)
+  if debug: echo "Process Body"
 
-  return
+  result = newBodyData()
+  result.multipart = false
+  result.workingDir = ""
 
-proc newAsyncHttpBodyParser*(req: Request, uploadDirectory: string = getTempDir()): Future[AsyncHttpBodyParser] {.async.} =
+  if self.headers["Content-Type"].len > 20 and
+    self.headers["Content-Type"][0 .. 19] == "multipart/form-data;":
+    if debug: echo "Multipart Form Data"
+    result.multipart = true
+    result.workingDir = self.tmpUploadDir / $genOid()
+
+    await self.multipartFormData(result)
+
+  elif self.headers["Content-Type"] == "application/x-www-form-urlencoded":
+    if debug: echo "WWW Form Urlencoded"
+
+    await self.formUrlencoded(result)
+
+  else:
+    let contentLength = self.headers["Content-Length"].parseInt
+    result.data = await self.client.recv(contentLength)
+
+
+
+proc newAsyncHttpBodyParser*(
+  client: AsyncSocket,
+  reqHeaders: HttpHeaders,
+  tmpUploadDir: string = getTempDir(),
+  chunkSize = 8*1024
+): AsyncHttpBodyParser =
+
   ## Creates a new ``AsyncHttpBodyParser`` instance.
-  new result
-  result.upload_directory = uploadDirectory
 
-  await result.parseBody(req)
+  new result
+  result.client = client
+  result.headers = reqHeaders
+  result.tmpUploadDir = tmpUploadDir
+  result.chunkSize = chunkSize
