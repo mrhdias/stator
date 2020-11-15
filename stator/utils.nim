@@ -1,5 +1,4 @@
 #
-#
 #         Stator Async HTTP Server Utils
 #        (c) Copyright 2020 Henrique Dias
 #
