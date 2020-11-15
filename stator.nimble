@@ -10,3 +10,6 @@ skipDirs = @["examples", "tests"]
 # Dependencies
 
 requires "nim >= 1.4.0"
+
+task test, "Test AsyncHttpserver":
+  exec "nim c -r -d:release -d:usestd tests/app.nim"
