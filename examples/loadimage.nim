@@ -1,5 +1,5 @@
 #
-# nimble install https://github.com/mrhdias/Stator
+# nimble install https://github.com/mrhdias/stator
 # nim c -d:ssl -r loadimage.nim
 # http://example:8080/
 #
