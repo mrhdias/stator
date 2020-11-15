@@ -1,7 +1,7 @@
 ![Stator Logo](https://raw.githubusercontent.com/mrhdias/StatorHTTPServer/master/logo.png)
 
-# Stator - HTTP Server
-Experimental and very young HTTP Server write in [Nim](https://nim-lang.org/).
+# Stator - Web Application Framework
+Experimental and very young Web Application Framework write in [Nim](https://nim-lang.org/).
 
 ```nim
 import stator
