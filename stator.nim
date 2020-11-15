@@ -1,44 +1,58 @@
 #
-# Copyright (C) 2020 Henrique Dias
-# MIT License - Look at LICENSE for details.
+#           Stator Async HTTP Server
+#        (c) Copyright 2020 Henrique Dias
 #
-import macros
-import re
-import asyncdispatch
-from strutils import `%`
-import stator/[routes, asynchttpserver, asynchttpbodyparser, asynchttpserver, asynchttpsessions, asynchttpfileserver, basicauth]
+#    See the file "copying.txt", included in this
+#    distribution, for details about the copyright.
+#
+import stator/asynchttpserver
+import stator/asynchttpbodyparser
+import json
 
-export asyncdispatch
-export re
-export routes
 export asynchttpserver
 export asynchttpbodyparser
-export asynchttpserver
-export asynchttpsessions
-export asynchttpfileserver
-export basicauth
 
-type
-  Settings = object
-    port: int
-    maxBody: int
+template respond*(data: string | JsonNode) {.dirty.} =
+  ## One time request response
+  ## It is a shortcut to the expression:
+  ## .. code-block::nim
+  ##   await req.respond(data: string | JsonNode)
+  await req.respond(data)
 
-proc listenFor*(port: int = 8080, maxBody: int = 8388608): Settings =
-  return Settings(port: port, maxBody: maxBody)
+template resp*(data: string) {.dirty.} =
+  ## Breaks the response to the request into multiple parts
+  ## It is a shortcut to the expression:
+  ## .. code-block::nim
+  ##   await req.resp(data: string)
+  await req.resp(data)
 
-macro withStator*(args, body: untyped): untyped =
-  if args.kind != nnkInfix or args.len != 3 or not eqIdent(args[0], "->"):
-    error "'(value) -> (name)' expected in withStator, found: '$1'" % [args.repr]
+template sendFile*(filepath: string) {.dirty.} =
+  ## It is a shortcut to the expression:
+  ## .. code-block::nim
+  ##   await req.sendFile(filepath: string)
+  await req.sendFile(filepath)
 
-  let varValue = args[1]
-  let varName = args[2]
+template formData*(): FormTableRef[string, string] =
+  ## Object with the value of the fields from submitted html forms without files.
+  ## It is a shortcut to the expression:
+  ## .. code-block::nim
+  ##   req.body.formdata
+  req.body.formdata
 
-  template withStatorImpl(name, value, body) =
-    let settings = value
-    proc handler(name: Request) {.async gcsafe.} =
-      body
-    let server = newAsyncHttpServer(maxBody=settings.maxBody)
-    waitFor server.serve(Port(settings.port), handler)
+template formFiles*(): FormTableRef[string, FileAttributes] =
+  ## Object with the value of the input file fields from submitted html forms.
+  ## It is a shortcut to the expression:
+  ## .. code-block::nim
+  ##   req.body.formfiles
+  req.body.formfiles
 
-  getAst(withStatorImpl(varName, varValue, body))
-  
+proc newApp*(): AsyncHttpServer = newAsyncHttpServer()
+
+when not defined(testing) and isMainModule:
+  proc main() =
+    let app = newApp()
+    app.get("/", proc (req: Request) {.async.} =
+      await req.respond("Hello World!")
+    )
+    app.run()
+  main()
