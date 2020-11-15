@@ -1,4 +1,3 @@
-
 #
 #      Stator Async HTTP Server Body Parser
 #        (c) Copyright 2020 Henrique Dias
