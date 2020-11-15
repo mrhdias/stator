@@ -1,12 +1,14 @@
 #
 #
-#         Nim's HTTP Basic Authentication
-#        (c) Copyright 2019 Henrique Dias
+#      Stator Async HTTP Basic Authentication
+#        (c) Copyright 2020 Henrique Dias
 #
 #    See the file "copying.txt", included in this
 #    distribution, for details about the copyright.
 #
-import asyncdispatch, asynchttpserver
+import asyncdispatch
+from ../stator/asynchttpserver import Request, respond
+import httpcore
 from strutils import splitWhitespace, startsWith, split, `%`
 from base64 import decode
 
@@ -15,12 +17,12 @@ type
     username*: string
     password*: string
 
-proc get_credentials*(req: Request): Credentials =
-  if req.headers.hasKey("Authorization") and
-      req.headers["Authorization"].len() > 10 and
-      req.headers["Authorization"].startsWith("Basic "):
+proc getCredentials*(req: Request): Credentials =
+  if req.headers.hasKey("authorization") and
+      req.headers["authorization"].len() > 10 and
+      req.headers["authorization"].startsWith("Basic "):
 
-    let parts = req.headers["Authorization"].splitWhitespace(maxsplit=1)
+    let parts = req.headers["authorization"].splitWhitespace(maxsplit=1)
 
     if parts.len() == 2 and parts[1].len() > 3:
       let credentials = decode(parts[1]).split(':', maxsplit=1)
@@ -30,25 +32,26 @@ proc get_credentials*(req: Request): Credentials =
   return Credentials(username: "", password: "")
 
 
-proc auth_required*(req: Request, realm: string = "") {.async.} =
+proc authRequired*(req: Request, realm: string = "") {.async.} =
+
   let htmlpage = """
 <!DOCTYPE HTML PUBLIC "-//IETF//DTD HTML 2.0//EN">
 <html>
-<head><title>401 Unauthorized</title></head>
-<body>
-<h1>Unauthorized</h1>
-<p>This server could not verify that you
+  <head><title>401 Unauthorized</title></head>
+  <body>
+    <h1>Unauthorized</h1>
+    <p>This server could not verify that you
 are authorized to access the document
 requested.  Either you supplied the wrong
 credentials (e.g., bad password), or your
 browser doesn't understand how to supply
 the credentials required.</p>
-</body>
-</html>
-"""
-  let headers = newHttpHeaders([
-    ("WWW-Authenticate", "Basic realm=\"$1\"" % realm),
-    ("Content-Length", $(htmlpage.len()))
-  ])
-  await req.respond(Http401, htmlpage, headers)
+  </body>
+</html>"""
 
+  req.response.headers["WWW-Authenticate"] = "Basic realm=\"$1\"" % realm
+  req.response.headers["content-length"] = $(htmlpage.len())
+  req.response.headers["content-type"] = "text/html; charset=utf-8"
+  req.response.statusCode = Http401
+
+  await req.respond(htmlpage)
