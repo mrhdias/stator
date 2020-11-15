@@ -1,11 +1,11 @@
 #
-# nimble install https://github.com/mrhdias/StatorHTTPServer
+# nimble install https://github.com/mrhdias/Stator
 # nim c -r chart.nim
 # http://example:8080/
 #
 # "respond(data: string | JsonNode)" is a shortcut for "await req.respond(data: string | JsonNode)"
 #
-import ../stator
+import stator
 from strutils import `%`, split, parseFloat
 import asyncfile
 import json
