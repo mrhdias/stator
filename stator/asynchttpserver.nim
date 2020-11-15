@@ -13,7 +13,7 @@ from strutils import `%`, split, cmpIgnoreCase, toUpperAscii, rfind, toHex
 from parseutils import skipIgnoreCase, parseSaturatedNatural
 import re
 import json
-from sequtils import toSeq
+from sequtils import toSeq, map
 import mimetypes
 from times import now, format
 
