@@ -1,10 +1,10 @@
 #
-# nimble install https://github.com/mrhdias/StatorHTTPServer
+# nimble install https://github.com/mrhdias/stator
 # nim c -r confidential.nim 
 # http://example:8080/
 #
-import ../stator
-import ../stator/basicauth
+import stator
+import stator/basicauth
 from strutils import `%`
 
 #
