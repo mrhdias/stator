@@ -1,9 +1,9 @@
 #
-# nimble install https://github.com/mrhdias/StatorHTTPServer
+# nimble install https://github.com/mrhdias/stator
 # nim c -r uploads.nim 
 # http://example:8080/
 #
-import ../stator
+import stator
 import tables
 from strutils import `%`
 
