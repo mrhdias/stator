@@ -8,6 +8,7 @@
 import stator/asynchttpserver
 import stator/asynchttpbodyparser
 import json
+from strutils import `%`
 
 export asynchttpserver
 export asynchttpbodyparser
