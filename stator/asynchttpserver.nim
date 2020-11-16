@@ -634,17 +634,9 @@ proc serve*(server: AsyncHttpServer) {.async.} =
       echo "Error: ", e.msg
       await sleepAsync(1000)
 
-proc run*(server: AsyncHttpServer) =
-  echo "The Stator is rotating at http://$1:$2" % [
-    if server.config.address == "": "0.0.0.0" else: server.config.address,
-    $(server.config.port)
-  ]
-  asyncCheck server.serve()
-  runForever()
-
 
 proc newAsyncHttpServer*(): AsyncHttpServer =
-  ## Creates a new ``AsyncFCGIServer`` instance.
+  ## Creates a new ``AsyncHttpServer`` instance.
   new result
   result.config.reuseAddr = true
   result.config.reusePort = true
@@ -656,3 +648,15 @@ proc newAsyncHttpServer*(): AsyncHttpServer =
   result.config.autoCleanTmpUploadDir = true
   result.config.staticDir = ""
   result.config.maxBody = 8388608 # 8MB = 8388608 Bytes
+
+
+when not defined(testing) and isMainModule:
+  proc main() =
+    var server = newAsyncHttpServer()
+    server.get("/", proc (req: Request) {.async.} =
+      await req.respond("Hello World!")
+    )
+    asyncCheck server.serve()
+    runForever()
+
+  main()
