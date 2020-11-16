@@ -55,7 +55,7 @@ proc run*(server: AsyncHttpServer) =
   asyncCheck server.serve()
   runForever()
 
-proc newApp*(): AsyncHttpServer = newAsyncHttpServer()
+proc newApp*(): AsyncHttpServer {.inline.} = newAsyncHttpServer()
 
 when not defined(testing) and isMainModule:
   proc main() =
