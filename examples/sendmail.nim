@@ -1,5 +1,5 @@
 #
-# nimble install https://github.com/mrhdias/StatorHTTPServer
+# nimble install https://github.com/mrhdias/stator
 # nim c -d:ssl -r sendmail.nim
 # http://example:8080/sendmail
 #
@@ -8,7 +8,7 @@
 # https://myaccount.google.com/lesssecureapps
 # Allow less secure apps: OFF (Turn ON)
 #
-import ../stator
+import stator
 import smtp
 import re
 import strutils
