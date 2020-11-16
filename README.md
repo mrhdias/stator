@@ -72,3 +72,79 @@ proc main() =
 
 main()
 ```
+
+### Configuration Options
+```nim
+config.port = 8080 # Default Port
+config.address = ""
+config.reuseAddr = true # Default value
+config.reusePort = false # Default value
+
+# Default temporary directory of the current user to save temporary files
+config.tmpUploadDir = getTempDir()
+# The value true will cause the temporary files left after request processing to be removed.
+config.autoCleanTmpUploadDir = true
+# To serve static files such as images, CSS files, and JavaScript files
+config.staticDir = ""
+# Sets the maximum allowed size of the client request body
+config.maxBody = 8388608 # Default 8MB = 8388608 Bytes
+```
+
+### Available Router Methods
+Routes that respond to any HTTP verb
+```nim
+get*(
+  server: AsyncHttpServer,
+  pattern: string | Regex,
+  callback: proc (request: Request): Future[void] {.closure, gcsafe.}
+)
+
+post*(
+  server: AsyncHttpServer,
+  pattern: string | Regex,
+  callback: proc (request: Request): Future[void] {.closure, gcsafe.}
+)
+
+put*(
+  server: AsyncHttpServer,
+  pattern: string | Regex,
+  callback: proc (request: Request): Future[void] {.closure, gcsafe.}
+)
+
+patch*(
+  server: AsyncHttpServer,
+  pattern: string | Regex,
+  callback: proc (request: Request): Future[void] {.closure, gcsafe.}
+)
+
+delete*(
+  server: AsyncHttpServer,
+  pattern: string | Regex,
+  callback: proc (request: Request): Future[void] {.closure, gcsafe.}
+)
+
+options*(
+  server: AsyncHttpServer,
+  pattern: string | Regex,
+  callback: proc (request: Request): Future[void] {.closure, gcsafe.}
+)
+```
+
+Route that responds to multiple HTTP verbs
+```nim
+match*(
+  server: AsyncHttpServer,
+  methods: openArray[string],
+  pattern: string | Regex,
+  callback: proc (request: Request): Future[void] {.closure, gcsafe.}
+)
+```
+
+Route that responds to all HTTP verbs
+```nim
+any*(
+  server: AsyncHttpServer,
+  pattern: string | Regex,
+  callback: proc (request: Request): Future[void] {.closure, gcsafe.}
+)
+```
