@@ -46,6 +46,14 @@ template formFiles*(): FormTableRef[string, FileAttributes] =
   ##   req.body.formfiles
   req.body.formfiles
 
+proc run*(server: AsyncHttpServer) =
+  echo "The Stator is rotating at http://$1:$2" % [
+    if server.config.address == "": "0.0.0.0" else: server.config.address,
+    $(server.config.port)
+  ]
+  asyncCheck server.serve()
+  runForever()
+
 proc newApp*(): AsyncHttpServer = newAsyncHttpServer()
 
 when not defined(testing) and isMainModule:
