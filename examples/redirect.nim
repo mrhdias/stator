@@ -1,9 +1,9 @@
 #
-# nimble install https://github.com/mrhdias/StatorHTTPServer
+# nimble install https://github.com/mrhdias/stator
 # nim c -r redirect.nim
 # http://example:8080/redirect
 #
-import ../stator
+import stator
 
 proc showPage(req: Request) {.async.} =
 
