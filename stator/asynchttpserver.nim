@@ -386,6 +386,7 @@ proc processRequest(
     else:
       if contentLength > server.config.maxBody:
         await request.respondError(Http413)
+        client.close()
         return false
 
       # request.rawBody = await client.recv(contentLength)
@@ -396,6 +397,7 @@ proc processRequest(
 
       let bodyParser = newAsyncHttpBodyParser(client, request.headers)
       request.body = await bodyParser.process()
+      # echo getOccupiedMem()
 
   elif request.reqMethod == HttpPost:
     request.response.statusCode = Http411
