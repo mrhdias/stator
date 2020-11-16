@@ -3,8 +3,8 @@
 # nim c -r sessions.nim 
 # http://example:8080/sessions
 #
-import ../stator
-import ../stator/asyncsessions
+import stator
+import stator/asyncsessions
 from strutils import `%`
 from strformat import `&`
 from cookies import parseCookies
