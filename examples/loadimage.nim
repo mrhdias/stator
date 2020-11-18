@@ -9,7 +9,7 @@ import asyncfile
 import os
 from strutils import `%`
 
-const remoteImg = "https://raw.githubusercontent.com/mrhdias/fastkiss/master/examples/test.jpg"
+const remoteImg = "https://raw.githubusercontent.com/mrhdias/stator/devel/examples/test.jpg"
 
 proc getImage(): Future[string] {.async.} =
   let client = newAsyncHttpClient()
