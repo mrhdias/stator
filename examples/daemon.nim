@@ -70,6 +70,7 @@ proc launchApp() =
 
   let app = newApp()
   app.config.port = 8080 # optional if default port
+  app.config.reusePort = true
   app.get("/sessions", (req: Request) => showSessionPage(req, sessions))
 
   app.get("/", test)
